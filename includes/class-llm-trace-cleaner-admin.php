@@ -81,12 +81,24 @@ class LLM_Trace_Cleaner_Admin {
         if (isset($_POST['llm_trace_cleaner_clear_log']) && check_admin_referer('llm_trace_cleaner_clear_log')) {
             $logger = new LLM_Trace_Cleaner_Logger();
             $logger->clear_log();
+            $logger->clear_file_log();
             
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-success is-dismissible"><p>' . 
                      esc_html__('Log vaciado correctamente.', 'llm-trace-cleaner') . 
                      '</p></div>';
             });
+        }
+        
+        // Descargar archivo de log
+        if (isset($_GET['llm_trace_cleaner_download_log']) && check_admin_referer('llm_trace_cleaner_download_log')) {
+            $logger = new LLM_Trace_Cleaner_Logger();
+            $log_content = $logger->get_file_log_content(0);
+            
+            header('Content-Type: text/plain');
+            header('Content-Disposition: attachment; filename="llm-trace-cleaner-' . date('Y-m-d') . '.log"');
+            echo $log_content;
+            exit;
         }
     }
     
@@ -117,7 +129,7 @@ class LLM_Trace_Cleaner_Admin {
         $total_pages = wp_count_posts('page')->publish;
         $total = $total_posts + $total_pages;
         
-        // Inicializar el estado del proceso
+        // Inicializar el estado del proceso con tiempo extendido
         $process_id = 'llm_trace_clean_' . time();
         set_transient('llm_trace_cleaner_process_' . $process_id, array(
             'total' => $total,
@@ -125,7 +137,7 @@ class LLM_Trace_Cleaner_Admin {
             'modified' => 0,
             'stats' => array(),
             'started' => current_time('mysql'),
-        ), 3600);
+        ), 7200); // 2 horas para procesos largos
         
         wp_send_json_success(array(
             'total' => $total,
@@ -157,8 +169,9 @@ class LLM_Trace_Cleaner_Admin {
             wp_send_json_error(array('message' => __('Estado del proceso no encontrado.', 'llm-trace-cleaner')));
         }
         
-        // Aumentar tiempo de ejecución para este lote
-        @set_time_limit(60);
+        // Aumentar tiempo de ejecución y memoria para este lote
+        @set_time_limit(120); // Aumentar a 120 segundos
+        @ini_set('memory_limit', '256M'); // Aumentar memoria si es posible
         
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
         $logger = new LLM_Trace_Cleaner_Logger();
@@ -212,13 +225,19 @@ class LLM_Trace_Cleaner_Admin {
                 // Registrar en el log
                 $logger->log_action('manual', $post_id, $post->post_title, $stats);
             }
+            
+            // Limpiar memoria después de cada post
+            unset($post);
+            unset($original_content);
+            unset($cleaned_content);
         }
         
         // Limpiar memoria
         wp_reset_postdata();
         unset($query);
+        unset($cleaner);
         
-        // Actualizar estado del proceso
+        // Actualizar estado del proceso con tiempo extendido
         $process_state['processed'] += count($posts);
         $process_state['modified'] += $batch_modified;
         foreach ($batch_stats as $attr => $count) {
@@ -228,7 +247,8 @@ class LLM_Trace_Cleaner_Admin {
             $process_state['stats'][$attr] += $count;
         }
         
-        set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 3600);
+        // Extender el transient a 2 horas para procesos largos
+        set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 7200);
         
         wp_send_json_success(array(
             'processed' => count($posts),
@@ -274,7 +294,15 @@ class LLM_Trace_Cleaner_Admin {
         
         $auto_clean_enabled = get_option('llm_trace_cleaner_auto_clean', false);
         $logger = new LLM_Trace_Cleaner_Logger();
-        $recent_logs = $logger->get_recent_logs(50);
+        
+        // Paginación
+        $per_page = 50;
+        $current_page = isset($_GET['log_page']) ? absint($_GET['log_page']) : 1;
+        $offset = ($current_page - 1) * $per_page;
+        $total_logs = $logger->get_total_logs_count();
+        $total_pages = ceil($total_logs / $per_page);
+        
+        $recent_logs = $logger->get_recent_logs($per_page, $offset);
         $scan_result = get_transient('llm_trace_cleaner_scan_result');
         
         // Limpiar el transient después de mostrarlo
@@ -546,6 +574,7 @@ class LLM_Trace_Cleaner_Admin {
                 $.ajax({
                     url: ajaxUrl,
                     type: 'POST',
+                    timeout: 150000, // 150 segundos de timeout (2.5 minutos)
                     data: {
                         action: 'llm_trace_cleaner_process_batch',
                         nonce: ajaxNonce,
@@ -564,25 +593,31 @@ class LLM_Trace_Cleaner_Admin {
                             $('#llm-trace-cleaner-status-text').text(
                                 '<?php echo esc_js(__('Procesando...', 'llm-trace-cleaner')); ?> ' + 
                                 data.total_processed + ' / ' + totalPosts + 
-                                ' (<?php echo esc_js(__('Modificados:', 'llm-trace-cleaner')); ?> ' + data.total_modified + ')'
+                                ' (<?php echo esc_js(__('Modificados:', 'llm-trace-cleaner')); ?> ' + data.total_modified + ')' +
+                                ' - <?php echo esc_js(__('Esperando...', 'llm-trace-cleaner')); ?>'
                             );
                             
                             if (data.is_complete) {
                                 // Proceso completado
                                 finishProcess();
                             } else {
-                                // Continuar con el siguiente lote
-                                setTimeout(processNextBatch, 500); // Pequeña pausa entre lotes
+                                // Continuar con el siguiente lote - aumentar pausa para dar tiempo al servidor
+                                setTimeout(processNextBatch, 1000); // Aumentar a 1 segundo entre lotes
                             }
                         } else {
                             alert('Error: ' + (response.data.message || 'Error desconocido'));
                             resetUI();
                         }
                     },
-                    error: function() {
+                    error: function(xhr, status, error) {
                         if (!shouldStop) {
-                            alert('<?php echo esc_js(__('Error de conexión. El proceso continuará automáticamente.', 'llm-trace-cleaner')); ?>');
-                            setTimeout(processNextBatch, 2000);
+                            // Si es timeout, esperar más tiempo antes de reintentar
+                            var waitTime = (status === 'timeout') ? 5000 : 2000;
+                            $('#llm-trace-cleaner-status-text').text(
+                                '<?php echo esc_js(__('Error de conexión. Reintentando en', 'llm-trace-cleaner')); ?> ' + 
+                                (waitTime / 1000) + ' <?php echo esc_js(__('segundos...', 'llm-trace-cleaner')); ?>'
+                            );
+                            setTimeout(processNextBatch, waitTime);
                         } else {
                             resetUI();
                         }

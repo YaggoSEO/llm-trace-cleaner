@@ -150,7 +150,56 @@ Por defecto, el plugin procesa 10 posts por lote. Si necesitas ajustar esto, pue
 
 ### Tiempo de ejecución
 
-Cada lote tiene un tiempo máximo de ejecución de 60 segundos. Esto se puede ajustar modificando `@set_time_limit(60)` en el mismo método.
+Cada lote tiene un tiempo máximo de ejecución de 120 segundos. Esto se puede ajustar modificando `@set_time_limit(120)` en el mismo método.
+
+## 🖥️ Requisitos del servidor recomendados
+
+Para un funcionamiento óptimo del plugin, especialmente cuando se procesan grandes cantidades de contenido (más de 1000 entradas), se recomiendan los siguientes valores de configuración del servidor:
+
+### PHP
+
+- **Versión**: PHP 7.4 o superior (PHP 8.0+ recomendado)
+- **memory_limit**: Mínimo 256MB (512MB recomendado para sitios grandes)
+- **max_execution_time**: Mínimo 120 segundos (300 segundos recomendado)
+- **post_max_size**: Mínimo 64MB
+- **upload_max_filesize**: Mínimo 64MB
+
+### Servidor web
+
+- **Timeout de conexión**: Mínimo 150 segundos (recomendado 300 segundos)
+- **Nginx**: `proxy_read_timeout 300s;`
+- **Apache**: `Timeout 300` en la configuración
+
+### Base de datos
+
+- **MySQL/MariaDB**: Versión 5.7 o superior
+- **Tiempo de conexión**: Mínimo 300 segundos
+- **max_allowed_packet**: Mínimo 64MB
+
+### WordPress
+
+- **WP_MEMORY_LIMIT**: Mínimo 256M (definir en `wp-config.php`)
+- **WP_MAX_MEMORY_LIMIT**: Mínimo 512M (definir en `wp-config.php`)
+
+### Configuración en wp-config.php
+
+Para optimizar el rendimiento, agrega estas líneas a tu archivo `wp-config.php`:
+
+```php
+// Aumentar límite de memoria
+define('WP_MEMORY_LIMIT', '256M');
+define('WP_MAX_MEMORY_LIMIT', '512M');
+
+// Aumentar tiempo de ejecución
+set_time_limit(300);
+```
+
+### Notas importantes
+
+- Estos valores son especialmente importantes cuando se procesan más de 1000 entradas
+- El plugin está diseñado para manejar timeouts automáticamente y continuar el proceso
+- Si experimentas problemas de timeout, considera aumentar los valores según las recomendaciones
+- Para sitios con más de 5000 entradas, se recomienda aumentar aún más los valores de memoria y tiempo de ejecución
 
 ## 🐛 Solución de problemas
 
