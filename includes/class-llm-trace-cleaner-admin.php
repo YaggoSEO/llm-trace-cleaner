@@ -708,14 +708,24 @@ class LLM_Trace_Cleaner_Admin {
                                 resultHtml += '</ul>';
                             }
                             
+                            resultHtml += '<p style="margin-top: 15px; color: #666; font-style: italic;"><?php echo esc_js(__('La página se recargará automáticamente en unos segundos para mostrar los nuevos logs...', 'llm-trace-cleaner')); ?></p>';
                             resultHtml += '</div>';
                             $('#llm-trace-cleaner-result').html(resultHtml).show();
                         }
                         
                         resetUI();
+                        
+                        // Recargar la página después de 3 segundos para mostrar los nuevos logs
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 3000);
                     },
                     error: function() {
                         resetUI();
+                        // Recargar la página incluso si hay error para mostrar el estado actual
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
                     }
                 });
             }
