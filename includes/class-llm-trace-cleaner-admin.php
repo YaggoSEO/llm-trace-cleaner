@@ -63,10 +63,24 @@ class LLM_Trace_Cleaner_Admin {
             return;
         }
         
-        // Guardar configuración de limpieza automática
+        // Guardar configuración de limpieza automática y caché
         if (isset($_POST['llm_trace_cleaner_save_settings']) && check_admin_referer('llm_trace_cleaner_settings')) {
             $auto_clean = isset($_POST['llm_trace_cleaner_auto_clean']) ? true : false;
             update_option('llm_trace_cleaner_auto_clean', $auto_clean);
+            
+            // Configuración de caché
+            $disable_cache = isset($_POST['llm_trace_cleaner_disable_cache']) ? true : false;
+            update_option('llm_trace_cleaner_disable_cache', $disable_cache);
+            
+            // Bots seleccionados
+            $selected_bots = isset($_POST['llm_trace_cleaner_selected_bots']) ? 
+                array_map('sanitize_text_field', $_POST['llm_trace_cleaner_selected_bots']) : array();
+            update_option('llm_trace_cleaner_selected_bots', $selected_bots);
+            
+            // Bots personalizados
+            $custom_bots = isset($_POST['llm_trace_cleaner_custom_bots']) ? 
+                sanitize_textarea_field($_POST['llm_trace_cleaner_custom_bots']) : '';
+            update_option('llm_trace_cleaner_custom_bots', $custom_bots);
             
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-success is-dismissible"><p>' . 
@@ -293,6 +307,27 @@ class LLM_Trace_Cleaner_Admin {
         }
         
         $auto_clean_enabled = get_option('llm_trace_cleaner_auto_clean', false);
+        $disable_cache = get_option('llm_trace_cleaner_disable_cache', false);
+        $selected_bots = get_option('llm_trace_cleaner_selected_bots', array());
+        $custom_bots = get_option('llm_trace_cleaner_custom_bots', '');
+        
+        // Bots por defecto disponibles
+        $default_bots = array(
+            'chatgpt' => 'ChatGPT',
+            'claude' => 'Claude',
+            'bard' => 'Bard',
+            'gpt' => 'GPT',
+            'openai' => 'OpenAI',
+            'anthropic' => 'Anthropic',
+            'googlebot' => 'Googlebot',
+            'bingbot' => 'Bingbot',
+            'crawler' => 'Crawler',
+            'spider' => 'Spider',
+            'bot' => 'Bot',
+            'llm' => 'LLM',
+            'grok' => 'Grok',
+        );
+        
         $logger = new LLM_Trace_Cleaner_Logger();
         
         // Paginación
@@ -338,6 +373,69 @@ class LLM_Trace_Cleaner_Admin {
                                     </label>
                                     <p class="description">
                                         <?php echo esc_html__('Si está activada, el contenido se limpiará automáticamente cada vez que se guarde una entrada o página.', 'llm-trace-cleaner'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="llm_trace_cleaner_disable_cache">
+                                        <?php echo esc_html__('Desactivar caché para bots/LLMs', 'llm-trace-cleaner'); ?>
+                                    </label>
+                                </th>
+                                <td>
+                                    <label>
+                                        <input type="checkbox" 
+                                               name="llm_trace_cleaner_disable_cache" 
+                                               id="llm_trace_cleaner_disable_cache" 
+                                               value="1" 
+                                               <?php checked($disable_cache, true); ?>>
+                                        <?php echo esc_html__('Desactivar caché cuando se detecten bots o LLMs', 'llm-trace-cleaner'); ?>
+                                    </label>
+                                    <p class="description">
+                                        <?php echo esc_html__('Evita que los plugins de caché interfieran cuando bots o herramientas LLM acceden al sitio. Compatible con LiteSpeed Cache, WP Rocket, W3 Total Cache, WP Super Cache y NitroPack.', 'llm-trace-cleaner'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr id="llm-trace-cleaner-bots-config" style="<?php echo $disable_cache ? '' : 'display:none;'; ?>">
+                                <th scope="row">
+                                    <label>
+                                        <?php echo esc_html__('Bots/LLMs a detectar', 'llm-trace-cleaner'); ?>
+                                    </label>
+                                </th>
+                                <td>
+                                    <fieldset>
+                                        <legend class="screen-reader-text">
+                                            <span><?php echo esc_html__('Seleccionar bots', 'llm-trace-cleaner'); ?></span>
+                                        </legend>
+                                        <?php foreach ($default_bots as $bot_key => $bot_label): ?>
+                                            <label style="display: block; margin-bottom: 5px;">
+                                                <input type="checkbox" 
+                                                       name="llm_trace_cleaner_selected_bots[]" 
+                                                       value="<?php echo esc_attr($bot_key); ?>"
+                                                       <?php checked(in_array($bot_key, $selected_bots), true); ?>>
+                                                <?php echo esc_html($bot_label); ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    </fieldset>
+                                    <p class="description" style="margin-top: 10px;">
+                                        <?php echo esc_html__('Selecciona los bots/LLMs que quieres detectar. Si no seleccionas ninguno, se usarán todos por defecto.', 'llm-trace-cleaner'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr id="llm-trace-cleaner-custom-bots-config" style="<?php echo $disable_cache ? '' : 'display:none;'; ?>">
+                                <th scope="row">
+                                    <label for="llm_trace_cleaner_custom_bots">
+                                        <?php echo esc_html__('Bots personalizados', 'llm-trace-cleaner'); ?>
+                                    </label>
+                                </th>
+                                <td>
+                                    <textarea name="llm_trace_cleaner_custom_bots" 
+                                              id="llm_trace_cleaner_custom_bots" 
+                                              rows="5" 
+                                              class="large-text code"
+                                              placeholder="<?php echo esc_attr__('Escribe un bot por línea, por ejemplo:&#10;mi-bot-custom&#10;otro-bot'); ?>"><?php echo esc_textarea($custom_bots); ?></textarea>
+                                    <p class="description">
+                                        <?php echo esc_html__('Agrega bots personalizados, uno por línea. Se buscarán en el User-Agent del visitante.', 'llm-trace-cleaner'); ?>
                                     </p>
                                 </td>
                             </tr>
@@ -560,6 +658,15 @@ class LLM_Trace_Cleaner_Admin {
         
         <script type="text/javascript">
         jQuery(document).ready(function($) {
+            // Mostrar/ocultar configuración de bots según el estado del checkbox
+            $('#llm_trace_cleaner_disable_cache').on('change', function() {
+                if ($(this).is(':checked')) {
+                    $('#llm-trace-cleaner-bots-config, #llm-trace-cleaner-custom-bots-config').show();
+                } else {
+                    $('#llm-trace-cleaner-bots-config, #llm-trace-cleaner-custom-bots-config').hide();
+                }
+            });
+            
             var processId = null;
             var offset = 0;
             var totalPosts = 0;

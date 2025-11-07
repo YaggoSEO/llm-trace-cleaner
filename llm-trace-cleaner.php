@@ -74,6 +74,7 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-activator.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-cleaner.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-logger.php';
+        require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-cache.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-admin.php';
     }
     
@@ -85,6 +86,9 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         if (is_admin()) {
             LLM_Trace_Cleaner_Admin::get_instance();
         }
+        
+        // Inicializar control de caché para bots
+        LLM_Trace_Cleaner_Cache::get_instance();
         
         // Inicializar limpieza automática si está activada
         $auto_clean_enabled = get_option('llm_trace_cleaner_auto_clean', false);
