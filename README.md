@@ -1,6 +1,6 @@
 # LLM Trace Cleaner
 
-Plugin de WordPress que elimina automáticamente atributos de rastreo de herramientas LLM (ChatGPT, Claude, Bard, etc.) del contenido HTML de entradas y páginas.
+Plugin de WordPress que elimina automáticamente atributos de rastreo de herramientas LLM (ChatGPT, Claude, Gemini, etc.) del contenido HTML de entradas y páginas.
 
 ## 📋 Descripción
 
@@ -8,7 +8,7 @@ Plugin de WordPress que elimina automáticamente atributos de rastreo de herrami
 
 ### ¿Por qué usar este plugin?
 
-Cuando copias contenido desde herramientas como ChatGPT, Claude o Bard, estos servicios agregan atributos HTML ocultos para rastrear el contenido. Estos atributos:
+Cuando copias contenido desde herramientas como ChatGPT, Claude o Gemini, estos servicios agregan atributos HTML ocultos para rastrear el contenido. Estos atributos:
 - Aumentan el tamaño del HTML
 - Pueden afectar el rendimiento
 - No son necesarios para el funcionamiento del sitio
