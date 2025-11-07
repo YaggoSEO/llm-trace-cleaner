@@ -35,6 +35,11 @@ class LLM_Trace_Cleaner_Logger {
      * @return int|false ID del registro insertado o false en caso de error
      */
     public function log_action($action_type, $post_id, $post_title, $stats = array()) {
+        // Solo registrar si hay atributos eliminados
+        if (empty($stats)) {
+            return false;
+        }
+        
         global $wpdb;
         
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
@@ -57,29 +62,61 @@ class LLM_Trace_Cleaner_Logger {
             return false;
         }
         
-        return $wpdb->insert_id;
+        $log_id = $wpdb->insert_id;
+        
+        // Escribir también en el archivo de log
+        $this->write_to_file_log($action_type, $post_id, $post_title, $details);
+        
+        return $log_id;
     }
     
     /**
-     * Obtener logs recientes
+     * Obtener logs recientes (solo los que tienen atributos eliminados)
      *
      * @param int $limit Número de registros a obtener
+     * @param int $offset Offset para paginación
      * @return array Array de objetos con los logs
      */
-    public function get_recent_logs($limit = 50) {
+    public function get_recent_logs($limit = 50, $offset = 0) {
         global $wpdb;
         
         $limit = absint($limit);
+        $offset = absint($offset);
         
+        // Solo obtener logs que no tengan "Ningún atributo eliminado"
         $results = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM {$this->table_name} ORDER BY datetime DESC LIMIT %d",
-                $limit
+                "SELECT * FROM {$this->table_name} 
+                 WHERE details != %s AND details != '' 
+                 ORDER BY datetime DESC 
+                 LIMIT %d OFFSET %d",
+                'Ningún atributo eliminado',
+                $limit,
+                $offset
             ),
             OBJECT
         );
         
         return $results ? $results : array();
+    }
+    
+    /**
+     * Obtener el total de logs con atributos eliminados
+     *
+     * @return int Total de registros
+     */
+    public function get_total_logs_count() {
+        global $wpdb;
+        
+        $count = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->table_name} 
+                 WHERE details != %s AND details != ''",
+                'Ningún atributo eliminado'
+            )
+        );
+        
+        return absint($count);
     }
     
     /**
@@ -132,6 +169,88 @@ class LLM_Trace_Cleaner_Logger {
         $stats['manual_clean_count'] = absint($manual_count);
         
         return $stats;
+    }
+    
+    /**
+     * Escribir en el archivo de log
+     *
+     * @param string $action_type Tipo de acción
+     * @param int $post_id ID del post
+     * @param string $post_title Título del post
+     * @param string $details Detalles de la limpieza
+     * @return bool True si se escribió correctamente, false en caso contrario
+     */
+    private function write_to_file_log($action_type, $post_id, $post_title, $details) {
+        $log_file = LLM_TRACE_CLEANER_PLUGIN_DIR . 'llm-trace-cleaner.log';
+        
+        $timestamp = current_time('Y-m-d H:i:s');
+        $action_label = ($action_type === 'auto') ? 'Automático' : 'Manual';
+        
+        $log_entry = sprintf(
+            "[%s] %s | Post ID: %d | Título: %s | %s\n",
+            $timestamp,
+            $action_label,
+            $post_id,
+            $post_title,
+            $details
+        );
+        
+        // Intentar escribir en el archivo
+        $result = @file_put_contents($log_file, $log_entry, FILE_APPEND | LOCK_EX);
+        
+        if ($result === false) {
+            error_log('LLM Trace Cleaner: Error al escribir en archivo de log');
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Obtener el contenido del archivo de log
+     *
+     * @param int $lines Número de líneas a obtener (0 para todas)
+     * @return string Contenido del log o mensaje de error
+     */
+    public function get_file_log_content($lines = 0) {
+        $log_file = LLM_TRACE_CLEANER_PLUGIN_DIR . 'llm-trace-cleaner.log';
+        
+        if (!file_exists($log_file)) {
+            return __('El archivo de log no existe aún.', 'llm-trace-cleaner');
+        }
+        
+        if (!is_readable($log_file)) {
+            return __('No se puede leer el archivo de log.', 'llm-trace-cleaner');
+        }
+        
+        if ($lines > 0) {
+            // Obtener solo las últimas N líneas
+            $content = file($log_file);
+            if ($content === false) {
+                return __('Error al leer el archivo de log.', 'llm-trace-cleaner');
+            }
+            $content = array_slice($content, -$lines);
+            return implode('', $content);
+        } else {
+            // Obtener todo el contenido
+            $content = file_get_contents($log_file);
+            return $content !== false ? $content : __('Error al leer el archivo de log.', 'llm-trace-cleaner');
+        }
+    }
+    
+    /**
+     * Vaciar el archivo de log
+     *
+     * @return bool True si se vació correctamente, false en caso contrario
+     */
+    public function clear_file_log() {
+        $log_file = LLM_TRACE_CLEANER_PLUGIN_DIR . 'llm-trace-cleaner.log';
+        
+        if (file_exists($log_file)) {
+            return @file_put_contents($log_file, '') !== false;
+        }
+        
+        return true;
     }
 }
 

@@ -38,6 +38,8 @@ desktop.ini
 *.temp
 *.log
 *.cache
+# Archivo de log del plugin
+llm-trace-cleaner.log
 
 # Archivos de compresión
 *.zip

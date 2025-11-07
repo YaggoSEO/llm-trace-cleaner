@@ -394,15 +394,30 @@ class LLM_Trace_Cleaner_Admin {
                 <!-- Log -->
                 <div class="llm-trace-cleaner-section">
                     <h2><?php echo esc_html__('Registro de actividad', 'llm-trace-cleaner'); ?></h2>
-                    <form method="post" action="" onsubmit="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres vaciar el log?', 'llm-trace-cleaner')); ?>');" style="margin-bottom: 20px;">
-                        <?php wp_nonce_field('llm_trace_cleaner_clear_log'); ?>
-                        <p class="submit">
+                    <p class="description">
+                        <?php echo esc_html__('Solo se muestran los posts/páginas que tenían atributos de rastreo eliminados.', 'llm-trace-cleaner'); ?>
+                    </p>
+                    <div style="margin-bottom: 20px;">
+                        <form method="post" action="" onsubmit="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres vaciar el log?', 'llm-trace-cleaner')); ?>');" style="display: inline-block; margin-right: 10px;">
+                            <?php wp_nonce_field('llm_trace_cleaner_clear_log'); ?>
                             <input type="submit" 
                                    name="llm_trace_cleaner_clear_log" 
                                    class="button button-secondary" 
                                    value="<?php echo esc_attr__('Vaciar log', 'llm-trace-cleaner'); ?>">
-                        </p>
-                    </form>
+                        </form>
+                        <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('llm_trace_cleaner_download_log', '1'), 'llm_trace_cleaner_download_log')); ?>" 
+                           class="button button-secondary">
+                            <?php echo esc_html__('Descargar archivo de log', 'llm-trace-cleaner'); ?>
+                        </a>
+                        <span style="margin-left: 15px; color: #666;">
+                            <?php 
+                            printf(
+                                esc_html__('Total: %d registros', 'llm-trace-cleaner'),
+                                $total_logs
+                            );
+                            ?>
+                        </span>
+                    </div>
                     
                     <?php if (!empty($recent_logs)): ?>
                         <table class="wp-list-table widefat fixed striped">
@@ -442,6 +457,43 @@ class LLM_Trace_Cleaner_Admin {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        
+                        <?php if ($total_pages > 1): ?>
+                            <div class="llm-trace-cleaner-pagination" style="margin-top: 20px;">
+                                <?php
+                                $base_url = remove_query_arg('log_page');
+                                $base_url = add_query_arg('page', 'llm-trace-cleaner', $base_url);
+                                
+                                // Botón anterior
+                                if ($current_page > 1):
+                                    $prev_url = add_query_arg('log_page', $current_page - 1, $base_url);
+                                ?>
+                                    <a href="<?php echo esc_url($prev_url); ?>" class="button">
+                                        <?php echo esc_html__('« Anterior', 'llm-trace-cleaner'); ?>
+                                    </a>
+                                <?php endif; ?>
+                                
+                                <span style="margin: 0 15px;">
+                                    <?php
+                                    printf(
+                                        esc_html__('Página %d de %d', 'llm-trace-cleaner'),
+                                        $current_page,
+                                        $total_pages
+                                    );
+                                    ?>
+                                </span>
+                                
+                                <?php
+                                // Botón siguiente
+                                if ($current_page < $total_pages):
+                                    $next_url = add_query_arg('log_page', $current_page + 1, $base_url);
+                                ?>
+                                    <a href="<?php echo esc_url($next_url); ?>" class="button">
+                                        <?php echo esc_html__('Siguiente »', 'llm-trace-cleaner'); ?>
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     <?php else: ?>
                         <p><?php echo esc_html__('No hay registros en el log.', 'llm-trace-cleaner'); ?></p>
                     <?php endif; ?>
