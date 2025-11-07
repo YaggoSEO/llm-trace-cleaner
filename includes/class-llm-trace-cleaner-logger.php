@@ -33,9 +33,11 @@ class LLM_Trace_Cleaner_Logger {
      * @param string $post_title Título del post
      * @param array $stats Estadísticas de atributos eliminados
      * @param bool $force_log Forzar registro incluso si las stats están vacías (cuando el contenido cambió)
+     * @param string $original_content Contenido original (opcional, para detectar atributos cuando stats está vacío)
+     * @param string $cleaned_content Contenido limpio (opcional, para detectar atributos cuando stats está vacío)
      * @return int|false ID del registro insertado o false en caso de error
      */
-    public function log_action($action_type, $post_id, $post_title, $stats = array(), $force_log = false) {
+    public function log_action($action_type, $post_id, $post_title, $stats = array(), $force_log = false, $original_content = '', $cleaned_content = '') {
         // Solo registrar si hay atributos eliminados, a menos que se fuerce
         if (empty($stats) && !$force_log) {
             return false;
@@ -45,9 +47,14 @@ class LLM_Trace_Cleaner_Logger {
         
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
         
-        // Si las stats están vacías pero se fuerza el log, usar un mensaje genérico
+        // Si las stats están vacías pero se fuerza el log, intentar detectar qué atributos se eliminaron
         if (empty($stats) && $force_log) {
-            $details = __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
+            $detected_attrs = $this->detect_removed_attributes($original_content, $cleaned_content);
+            if (!empty($detected_attrs)) {
+                $details = $cleaner->format_stats($detected_attrs);
+            } else {
+                $details = __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
+            }
         } else {
             $details = $cleaner->format_stats($stats);
         }
@@ -258,6 +265,72 @@ class LLM_Trace_Cleaner_Logger {
         }
         
         return true;
+    }
+    
+    /**
+     * Detectar qué atributos se eliminaron comparando el contenido original y el limpio
+     *
+     * @param string $original_content Contenido original
+     * @param string $cleaned_content Contenido limpio
+     * @return array Array con los atributos detectados y su cantidad
+     */
+    private function detect_removed_attributes($original_content, $cleaned_content) {
+        if (empty($original_content) || empty($cleaned_content)) {
+            return array();
+        }
+        
+        $detected = array();
+        $attributes_to_check = array(
+            'data-start',
+            'data-end',
+            'data-is-last-node',
+            'data-is-only-node',
+            'data-llm',
+            'data-pm-slice',
+            'data-llm-id',
+            'data-llm-trace',
+            'data-original-text',
+            'data-source-text',
+            'data-highlight',
+            'data-entity',
+            'data-mention',
+        );
+        
+        // Contar atributos en el contenido original
+        foreach ($attributes_to_check as $attr) {
+            // Buscar el atributo en el contenido original
+            $pattern = '/\s+' . preg_quote($attr, '/') . '(?:\s*=\s*["\'][^"\']*["\'])?/i';
+            preg_match_all($pattern, $original_content, $matches);
+            $count = count($matches[0]);
+            
+            if ($count > 0) {
+                // Verificar que no esté en el contenido limpio
+                preg_match_all($pattern, $cleaned_content, $matches_cleaned);
+                $count_cleaned = count($matches_cleaned[0]);
+                
+                if ($count > $count_cleaned) {
+                    $removed_count = $count - $count_cleaned;
+                    $detected[$attr] = $removed_count;
+                }
+            }
+        }
+        
+        // Detectar IDs que empiezan con "model-response-message-contentr_"
+        $id_pattern = '/\s+id\s*=\s*["\']model-response-message-contentr_[^"\']*["\']/i';
+        preg_match_all($id_pattern, $original_content, $id_matches);
+        $id_count = count($id_matches[0]);
+        
+        if ($id_count > 0) {
+            preg_match_all($id_pattern, $cleaned_content, $id_matches_cleaned);
+            $id_count_cleaned = count($id_matches_cleaned[0]);
+            
+            if ($id_count > $id_count_cleaned) {
+                $removed_id_count = $id_count - $id_count_cleaned;
+                $detected['id(model-response-message-contentr_*)'] = $removed_id_count;
+            }
+        }
+        
+        return $detected;
     }
 }
 

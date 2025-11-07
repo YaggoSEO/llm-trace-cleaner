@@ -183,6 +183,9 @@ class LLM_Trace_Cleaner_Admin {
             wp_send_json_error(array('message' => __('Estado del proceso no encontrado.', 'llm-trace-cleaner')));
         }
         
+        // Desactivar caché durante el proceso de limpieza
+        LLM_Trace_Cleaner_Cache::disable_cache_for_cleaning();
+        
         // Aumentar tiempo de ejecución y memoria para este lote
         @set_time_limit(120); // Aumentar a 120 segundos
         @ini_set('memory_limit', '256M'); // Aumentar memoria si es posible
@@ -225,6 +228,9 @@ class LLM_Trace_Cleaner_Admin {
                     'post_content' => $cleaned_content
                 ));
                 
+                // Limpiar caché del post modificado
+                LLM_Trace_Cleaner_Cache::clear_post_cache($post_id);
+                
                 $batch_modified++;
                 
                 // Obtener estadísticas y acumular
@@ -237,7 +243,7 @@ class LLM_Trace_Cleaner_Admin {
                 }
                 
                 // Registrar en el log - forzar registro si el contenido cambió (incluso sin stats)
-                $logger->log_action('manual', $post_id, $post->post_title, $stats, true);
+                $logger->log_action('manual', $post_id, $post->post_title, $stats, true, $original_content, $cleaned_content);
             }
             
             // Limpiar memoria después de cada post
@@ -263,6 +269,11 @@ class LLM_Trace_Cleaner_Admin {
         
         // Extender el transient a 2 horas para procesos largos
         set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 7200);
+        
+        // Si el proceso está completo, limpiar toda la caché
+        if ($process_state['processed'] >= $process_state['total']) {
+            LLM_Trace_Cleaner_Cache::clear_all_cache();
+        }
         
         wp_send_json_success(array(
             'processed' => count($posts),

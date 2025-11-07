@@ -125,6 +125,9 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         
         // Si hubo cambios, actualizar el post
         if ($cleaned_content !== $content) {
+            // Desactivar caché durante la limpieza
+            LLM_Trace_Cleaner_Cache::disable_cache_for_cleaning();
+            
             // Remover el hook para evitar loop infinito
             remove_action('save_post', array($this, 'auto_clean_post'), 10);
             
@@ -134,13 +137,16 @@ if (!class_exists('LLM_Trace_Cleaner')) {
                 'post_content' => $cleaned_content
             ));
             
+            // Limpiar caché del post modificado
+            LLM_Trace_Cleaner_Cache::clear_post_cache($post_id);
+            
             // Volver a agregar el hook
             add_action('save_post', array($this, 'auto_clean_post'), 10, 2);
             
             // Registrar en el log - forzar registro si el contenido cambió (incluso sin stats)
             $logger = new LLM_Trace_Cleaner_Logger();
             $stats = $cleaner->get_last_stats();
-            $logger->log_action('auto', $post_id, $post->post_title, $stats, true);
+            $logger->log_action('auto', $post_id, $post->post_title, $stats, true, $content, $cleaned_content);
         }
     }
     }

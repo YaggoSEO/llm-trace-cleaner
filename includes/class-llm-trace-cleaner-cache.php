@@ -297,5 +297,176 @@ class LLM_Trace_Cleaner_Cache {
         }
         return $persist;
     }
+    
+    /**
+     * Desactivar caché durante el proceso de limpieza
+     * Se llama antes de procesar lotes de posts
+     */
+    public static function disable_cache_for_cleaning() {
+        // Desactivar todas las cachés de WordPress
+        if (!defined('DONOTCACHEPAGE')) {
+            define('DONOTCACHEPAGE', true);
+        }
+        if (!defined('DONOTCACHEOBJECT')) {
+            define('DONOTCACHEOBJECT', true);
+        }
+        if (!defined('DONOTCACHEDB')) {
+            define('DONOTCACHEDB', true);
+        }
+        
+        // LiteSpeed Cache
+        if (!defined('LSCACHE_NO_CACHE')) {
+            define('LSCACHE_NO_CACHE', true);
+        }
+        do_action('litespeed_control_set_nocache', 'llm-trace-cleaner: cleaning process');
+        
+        // NitroPack
+        if (!defined('NITROPACK_DISABLE_CACHE')) {
+            define('NITROPACK_DISABLE_CACHE', true);
+        }
+        
+        // WP Rocket
+        if (!defined('DONOTROCKETOPTIMIZE')) {
+            define('DONOTROCKETOPTIMIZE', true);
+        }
+        
+        // W3 Total Cache
+        if (!defined('DONOTMINIFY')) {
+            define('DONOTMINIFY', true);
+        }
+    }
+    
+    /**
+     * Limpiar caché de un post específico después de modificarlo
+     * 
+     * @param int $post_id ID del post
+     */
+    public static function clear_post_cache($post_id) {
+        if (empty($post_id)) {
+            return;
+        }
+        
+        // Limpiar caché de WordPress
+        clean_post_cache($post_id);
+        
+        // LiteSpeed Cache
+        if (class_exists('LiteSpeed_Cache_API')) {
+            LiteSpeed_Cache_API::purge_post($post_id);
+        }
+        if (function_exists('litespeed_purge_single_post')) {
+            litespeed_purge_single_post($post_id);
+        }
+        
+        // WP Rocket
+        if (function_exists('rocket_clean_post')) {
+            rocket_clean_post($post_id);
+        }
+        if (function_exists('rocket_clean_domain')) {
+            // Limpiar caché del dominio completo si es necesario
+            rocket_clean_domain();
+        }
+        
+        // W3 Total Cache
+        if (function_exists('w3tc_flush_post')) {
+            w3tc_flush_post($post_id);
+        }
+        if (function_exists('w3tc_pgcache_flush')) {
+            w3tc_pgcache_flush();
+        }
+        
+        // WP Super Cache
+        if (function_exists('wp_cache_post_change')) {
+            wp_cache_post_change($post_id);
+        }
+        
+        // NitroPack
+        if (function_exists('nitropack_sdk_purge')) {
+            nitropack_sdk_purge();
+        }
+        if (class_exists('NitroPack')) {
+            try {
+                $nitro = NitroPack::getInstance();
+                if (method_exists($nitro, 'purgeCache')) {
+                    $nitro->purgeCache();
+                }
+            } catch (Exception $e) {
+                // Silenciar errores de NitroPack
+            }
+        }
+        
+        // Cache Enabler
+        if (function_exists('ce_clear_cache')) {
+            ce_clear_cache();
+        }
+        
+        // Comet Cache
+        if (function_exists('comet_cache_clear_post_cache')) {
+            comet_cache_clear_post_cache($post_id);
+        }
+        
+        // WP Fastest Cache
+        if (function_exists('wpfc_clear_post_cache_by_id')) {
+            wpfc_clear_post_cache_by_id($post_id);
+        }
+        
+        // Autoptimize
+        if (function_exists('autoptimize_cache_flush')) {
+            autoptimize_cache_flush();
+        }
+    }
+    
+    /**
+     * Limpiar toda la caché después del proceso de limpieza
+     */
+    public static function clear_all_cache() {
+        // Limpiar caché de WordPress
+        wp_cache_flush();
+        
+        // LiteSpeed Cache
+        if (class_exists('LiteSpeed_Cache_API')) {
+            LiteSpeed_Cache_API::purge_all();
+        }
+        if (function_exists('litespeed_purge_all')) {
+            litespeed_purge_all();
+        }
+        
+        // WP Rocket
+        if (function_exists('rocket_clean_domain')) {
+            rocket_clean_domain();
+        }
+        if (function_exists('flush_rocket_htaccess')) {
+            flush_rocket_htaccess();
+        }
+        
+        // W3 Total Cache
+        if (function_exists('w3tc_flush_all')) {
+            w3tc_flush_all();
+        }
+        
+        // WP Super Cache
+        if (function_exists('wp_cache_clear_cache')) {
+            wp_cache_clear_cache();
+        }
+        
+        // NitroPack
+        if (function_exists('nitropack_sdk_purge')) {
+            nitropack_sdk_purge();
+        }
+        
+        // Cache Enabler
+        if (function_exists('ce_clear_cache')) {
+            ce_clear_cache();
+        }
+        
+        // Comet Cache
+        if (function_exists('comet_cache_clear')) {
+            comet_cache_clear();
+        }
+        
+        // WP Fastest Cache
+        if (function_exists('wpfc_clear_all_cache')) {
+            wpfc_clear_all_cache(true);
+        }
+    }
 }
 

@@ -20,11 +20,13 @@ Este plugin elimina automáticamente todos estos atributos, manteniendo tu conte
 
 - ✅ **Limpieza automática**: Opción para limpiar automáticamente el contenido al guardar entradas/páginas
 - 🧹 **Limpieza manual**: Botón para escanear y limpiar todo el contenido existente
-- 📊 **Sistema de logging**: Registro completo de todas las acciones realizadas
+- 📊 **Sistema de logging**: Registro completo de todas las acciones realizadas con detección inteligente de atributos eliminados
 - ⚡ **Procesamiento optimizado**: Sistema de lotes para evitar timeouts en sitios grandes
 - 📈 **Barra de progreso**: Visualización en tiempo real del progreso de limpieza
 - 🔒 **Seguro**: Verificación de permisos y protección con nonces
 - 🎯 **Preciso**: Usa DOMDocument para un parsing robusto del HTML
+- 🚫 **Gestión de caché inteligente**: Desactiva y limpia automáticamente la caché durante el proceso de limpieza para evitar interferencias
+- 🤖 **Detección de bots/LLMs**: Opción para desactivar caché cuando bots o herramientas LLM acceden al sitio
 
 ## 🎯 Atributos eliminados
 
@@ -81,6 +83,7 @@ El plugin elimina los siguientes atributos cuando aparecen en el HTML:
 Si activas la limpieza automática:
 - El contenido se limpiará automáticamente cada vez que guardes una entrada o página
 - Los cambios se registrarán en el log del plugin
+- La caché se limpiará automáticamente después de cada modificación
 - No necesitas hacer nada más
 
 ### Limpieza manual
@@ -101,8 +104,42 @@ Para limpiar todo el contenido existente:
 El plugin mantiene un registro de todas las acciones realizadas:
 
 1. Ve a **Herramientas > LLM Trace Cleaner**
-2. En la sección **Registro de actividad**, verás las últimas 50 acciones
-3. Puedes vaciar el log haciendo clic en **Vaciar log**
+2. En la sección **Registro de actividad**, verás las últimas 50 acciones (con paginación si hay más)
+3. Solo se muestran los posts/páginas que tenían atributos de rastreo eliminados
+4. El log muestra qué tipo de atributos se encontraron y eliminaron
+5. Puedes vaciar el log haciendo clic en **Vaciar log**
+6. Puedes descargar el archivo de log completo haciendo clic en **Descargar archivo de log**
+
+### Gestión de caché
+
+El plugin incluye un sistema inteligente de gestión de caché que:
+
+- **Durante la limpieza**: Desactiva automáticamente la caché para evitar interferencias
+- **Después de modificar posts**: Limpia la caché de cada post modificado
+- **Al finalizar**: Limpia toda la caché del sitio para asegurar que los cambios se reflejen
+
+**Compatibilidad con plugins de caché:**
+- ✅ LiteSpeed Cache
+- ✅ WP Rocket
+- ✅ W3 Total Cache
+- ✅ WP Super Cache
+- ✅ NitroPack
+- ✅ Cache Enabler
+- ✅ Comet Cache
+- ✅ WP Fastest Cache
+- ✅ Autoptimize
+
+**Desactivar caché para bots/LLMs:**
+
+El plugin también puede desactivar la caché cuando detecta que bots o herramientas LLM acceden al sitio:
+
+1. Ve a **Herramientas > LLM Trace Cleaner**
+2. Activa la opción **Desactivar caché para bots/LLMs**
+3. Selecciona los bots/LLMs que quieres detectar (ChatGPT, Claude, Bard, etc.)
+4. Opcionalmente, agrega bots personalizados (uno por línea)
+5. Guarda la configuración
+
+Esto asegura que los bots y herramientas LLM siempre vean el contenido más reciente sin interferencias de la caché.
 
 ## 🏗️ Estructura del plugin
 
@@ -113,7 +150,9 @@ llm-trace-cleaner/
 │   ├── class-llm-trace-cleaner-activator.php    # Activación/desactivación
 │   ├── class-llm-trace-cleaner-cleaner.php      # Lógica de limpieza HTML
 │   ├── class-llm-trace-cleaner-logger.php       # Sistema de logging
-│   └── class-llm-trace-cleaner-admin.php        # Interfaz de administración
+│   ├── class-llm-trace-cleaner-cache.php        # Gestión de caché
+│   └── class-llm-trace-cleaner-admin.php         # Interfaz de administración
+├── llm-trace-cleaner.log          # Archivo de log (generado automáticamente)
 └── README.md
 ```
 
@@ -222,6 +261,16 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.1.0
+- Sistema de gestión de caché inteligente
+- Desactivación automática de caché durante la limpieza
+- Limpieza de caché después de modificar posts
+- Detección de bots/LLMs para desactivar caché
+- Detección inteligente de atributos eliminados en el log
+- Paginación en el registro de actividad
+- Archivo de log descargable
+- Compatibilidad mejorada con plugins de caché (LiteSpeed, WP Rocket, W3 Total Cache, etc.)
 
 ### 1.0.0
 - Versión inicial
