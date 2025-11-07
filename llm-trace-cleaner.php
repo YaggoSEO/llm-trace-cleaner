@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: LLM Trace Cleaner
- * Plugin URI: https://example.com/llm-trace-cleaner
+ * Plugin URI: https://github.com/YaggoSEO/llm-trace-cleaner
  * Description: Elimina atributos de rastreo de herramientas LLM (ChatGPT, Claude, Bard, etc.) del contenido HTML de entradas y páginas.
  * Version: 1.1.0
  * Author: Yago Vázquez Gómez (Yaggoseo)
