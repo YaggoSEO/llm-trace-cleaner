@@ -32,18 +32,25 @@ class LLM_Trace_Cleaner_Logger {
      * @param int $post_id ID del post
      * @param string $post_title Título del post
      * @param array $stats Estadísticas de atributos eliminados
+     * @param bool $force_log Forzar registro incluso si las stats están vacías (cuando el contenido cambió)
      * @return int|false ID del registro insertado o false en caso de error
      */
-    public function log_action($action_type, $post_id, $post_title, $stats = array()) {
-        // Solo registrar si hay atributos eliminados
-        if (empty($stats)) {
+    public function log_action($action_type, $post_id, $post_title, $stats = array(), $force_log = false) {
+        // Solo registrar si hay atributos eliminados, a menos que se fuerce
+        if (empty($stats) && !$force_log) {
             return false;
         }
         
         global $wpdb;
         
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
-        $details = $cleaner->format_stats($stats);
+        
+        // Si las stats están vacías pero se fuerza el log, usar un mensaje genérico
+        if (empty($stats) && $force_log) {
+            $details = __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
+        } else {
+            $details = $cleaner->format_stats($stats);
+        }
         
         $result = $wpdb->insert(
             $this->table_name,
@@ -83,11 +90,11 @@ class LLM_Trace_Cleaner_Logger {
         $limit = absint($limit);
         $offset = absint($offset);
         
-        // Solo obtener logs que no tengan "Ningún atributo eliminado"
+        // Obtener todos los logs que tengan detalles (excluir solo los vacíos y "Ningún atributo eliminado")
         $results = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT * FROM {$this->table_name} 
-                 WHERE details != %s AND details != '' 
+                 WHERE details != %s AND details != '' AND details IS NOT NULL
                  ORDER BY datetime DESC 
                  LIMIT %d OFFSET %d",
                 'Ningún atributo eliminado',
@@ -111,7 +118,7 @@ class LLM_Trace_Cleaner_Logger {
         $count = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT COUNT(*) FROM {$this->table_name} 
-                 WHERE details != %s AND details != ''",
+                 WHERE details != %s AND details != '' AND details IS NOT NULL",
                 'Ningún atributo eliminado'
             )
         );

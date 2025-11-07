@@ -222,8 +222,8 @@ class LLM_Trace_Cleaner_Admin {
                     $batch_stats[$attr] += $count;
                 }
                 
-                // Registrar en el log
-                $logger->log_action('manual', $post_id, $post->post_title, $stats);
+                // Registrar en el log - forzar registro si el contenido cambió (incluso sin stats)
+                $logger->log_action('manual', $post_id, $post->post_title, $stats, true);
             }
             
             // Limpiar memoria después de cada post

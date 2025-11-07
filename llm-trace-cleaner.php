@@ -133,10 +133,10 @@ if (!class_exists('LLM_Trace_Cleaner')) {
             // Volver a agregar el hook
             add_action('save_post', array($this, 'auto_clean_post'), 10, 2);
             
-            // Registrar en el log
+            // Registrar en el log - forzar registro si el contenido cambió (incluso sin stats)
             $logger = new LLM_Trace_Cleaner_Logger();
             $stats = $cleaner->get_last_stats();
-            $logger->log_action('auto', $post_id, $post->post_title, $stats);
+            $logger->log_action('auto', $post_id, $post->post_title, $stats, true);
         }
     }
     }
