@@ -16,15 +16,19 @@
 // Prevenir acceso directo
 defined('ABSPATH') || exit;
 
-// Definir constantes del plugin
-define('LLM_TRACE_CLEANER_VERSION', '1.0.0');
-define('LLM_TRACE_CLEANER_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('LLM_TRACE_CLEANER_PLUGIN_URL', plugin_dir_url(__FILE__));
+// Verificar si las constantes ya están definidas (evita conflictos en actualizaciones)
+if (!defined('LLM_TRACE_CLEANER_VERSION')) {
+    // Definir constantes del plugin
+    define('LLM_TRACE_CLEANER_VERSION', '1.0.0');
+    define('LLM_TRACE_CLEANER_PLUGIN_DIR', plugin_dir_path(__FILE__));
+    define('LLM_TRACE_CLEANER_PLUGIN_URL', plugin_dir_url(__FILE__));
+}
 
 /**
  * Clase principal del plugin
  */
-final class LLM_Trace_Cleaner {
+if (!class_exists('LLM_Trace_Cleaner')) {
+    final class LLM_Trace_Cleaner {
     
     /**
      * Instancia única del plugin (Singleton)
@@ -135,15 +139,24 @@ final class LLM_Trace_Cleaner {
             $logger->log_action('auto', $post_id, $post->post_title, $stats);
         }
     }
+    }
 }
 
 /**
  * Inicializar el plugin
  */
-function llm_trace_cleaner_init() {
-    return LLM_Trace_Cleaner::get_instance();
+if (!function_exists('llm_trace_cleaner_init')) {
+    function llm_trace_cleaner_init() {
+        if (!class_exists('LLM_Trace_Cleaner')) {
+            return false;
+        }
+        return LLM_Trace_Cleaner::get_instance();
+    }
 }
 
-// Iniciar el plugin
-llm_trace_cleaner_init();
+// Iniciar el plugin solo si no se ha inicializado ya
+if (!did_action('llm_trace_cleaner_loaded')) {
+    llm_trace_cleaner_init();
+    do_action('llm_trace_cleaner_loaded');
+}
 
