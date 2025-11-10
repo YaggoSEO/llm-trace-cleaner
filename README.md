@@ -303,14 +303,19 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.1.4
+- **Información del sistema mejorada**: Valores recomendados mostrados junto a los valores actuales con indicadores de color (verde para valores correctos, rojo para valores inferiores)
+- **Descarga de log de depuración**: Nuevo botón para descargar todos los logs de depuración y errores en un archivo
+- **Comparación automática de valores**: El sistema compara automáticamente los valores del servidor con los recomendados y los marca visualmente
+- **Sistema de actualización automática**: Verificación y actualización automática de opciones cuando se actualiza el plugin
+- **Corrección de problemas de actualización**: Solucionado el problema de pantalla en blanco durante las actualizaciones del plugin
+
 ### 1.1.3
 - **Sistema de logging mejorado**: Logging detallado de memoria, tiempo de ejecución y progreso en cada lote
 - **Diagnóstico de errores mejorado**: Captura y registro de errores AJAX desde el cliente con información detallada
 - **Información de depuración**: Cada lote registra uso de memoria, tiempo restante y progreso porcentual
 - **Mejor manejo de timeouts**: Detección y reintento automático con información detallada del error
 - **Logging de estado del proceso**: Registro del estado completo antes y después de cada lote
-- **Sistema de actualización automática**: Verificación y actualización automática de opciones cuando se actualiza el plugin
-- **Corrección de problemas de actualización**: Solucionado el problema de pantalla en blanco durante las actualizaciones del plugin
 
 ### 1.1.2
 - **Menú principal en la barra de administración**: El plugin ahora aparece como un menú principal en lugar de estar en "Herramientas"

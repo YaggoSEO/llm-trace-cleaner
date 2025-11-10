@@ -149,6 +149,46 @@ class LLM_Trace_Cleaner_Admin {
             echo $log_content;
             exit;
         }
+        
+        // Descargar log de depuración
+        if (isset($_GET['llm_trace_cleaner_download_debug_log']) && check_admin_referer('llm_trace_cleaner_download_debug_log')) {
+            $error_logs = $this->get_error_logs();
+            $debug_logs = $this->get_debug_logs();
+            
+            $content = "=== LOG DE DEPURACIÓN LLM TRACE CLEANER ===\n";
+            $content .= "Generado: " . current_time('mysql') . "\n\n";
+            
+            $content .= "=== ERRORES ===\n";
+            if (!empty($error_logs)) {
+                foreach ($error_logs as $log) {
+                    $content .= "[" . $log['datetime'] . "] " . $log['message'] . "\n";
+                    if (!empty($log['context'])) {
+                        $content .= "  Contexto: " . $log['context'] . "\n";
+                    }
+                    $content .= "\n";
+                }
+            } else {
+                $content .= "No hay errores registrados.\n\n";
+            }
+            
+            $content .= "\n=== LOGS DE DEPURACIÓN ===\n";
+            if (!empty($debug_logs)) {
+                foreach ($debug_logs as $log) {
+                    $content .= "[" . $log['datetime'] . "] " . $log['message'] . "\n";
+                    if (!empty($log['data'])) {
+                        $content .= print_r($log['data'], true) . "\n";
+                    }
+                    $content .= "\n";
+                }
+            } else {
+                $content .= "No hay logs de depuración.\n";
+            }
+            
+            header('Content-Type: text/plain');
+            header('Content-Disposition: attachment; filename="llm-trace-cleaner-debug-' . date('Y-m-d') . '.log"');
+            echo $content;
+            exit;
+        }
     }
     
     /**
@@ -594,6 +634,46 @@ class LLM_Trace_Cleaner_Admin {
     }
     
     /**
+     * Convertir valor de memoria a bytes para comparación
+     */
+    private function convert_to_bytes($val) {
+        $val = trim($val);
+        if (empty($val) || $val === '-1') {
+            return PHP_INT_MAX; // Sin límite
+        }
+        
+        $last = strtolower($val[strlen($val)-1]);
+        $val = (int) $val;
+        
+        switch($last) {
+            case 'g':
+                $val *= 1024;
+                // fall through
+            case 'm':
+                $val *= 1024;
+                // fall through
+            case 'k':
+                $val *= 1024;
+        }
+        
+        return $val;
+    }
+    
+    /**
+     * Comparar valor actual con recomendado y devolver clase CSS
+     */
+    private function compare_value($current, $recommended, $type = 'number') {
+        if ($type === 'memory') {
+            $current_bytes = $this->convert_to_bytes($current);
+            $recommended_bytes = $this->convert_to_bytes($recommended);
+            return $current_bytes >= $recommended_bytes ? 'status-ok' : 'status-warning';
+        } else {
+            // Para números (tiempo de ejecución, etc.)
+            return (int)$current >= (int)$recommended ? 'status-ok' : 'status-warning';
+        }
+    }
+    
+    /**
      * Renderizar página de depuración
      */
     public function render_debug_page() {
@@ -622,33 +702,68 @@ class LLM_Trace_Cleaner_Admin {
                 <div class="llm-trace-cleaner-section">
                     <h2><?php echo esc_html__('Información del Sistema', 'llm-trace-cleaner'); ?></h2>
                     <table class="widefat">
+                        <thead>
+                            <tr>
+                                <th style="width: 200px;"><?php echo esc_html__('Parámetro', 'llm-trace-cleaner'); ?></th>
+                                <th><?php echo esc_html__('Valor Actual', 'llm-trace-cleaner'); ?></th>
+                                <th><?php echo esc_html__('Recomendado', 'llm-trace-cleaner'); ?></th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <tr>
-                                <th style="width: 200px;"><?php echo esc_html__('PHP Version:', 'llm-trace-cleaner'); ?></th>
+                                <th><?php echo esc_html__('PHP Version:', 'llm-trace-cleaner'); ?></th>
                                 <td><?php echo esc_html(PHP_VERSION); ?></td>
+                                <td><?php echo esc_html__('7.4 o superior', 'llm-trace-cleaner'); ?></td>
                             </tr>
                             <tr>
                                 <th><?php echo esc_html__('WordPress Version:', 'llm-trace-cleaner'); ?></th>
                                 <td><?php echo esc_html(get_bloginfo('version')); ?></td>
+                                <td><?php echo esc_html__('5.0 o superior', 'llm-trace-cleaner'); ?></td>
                             </tr>
                             <tr>
                                 <th><?php echo esc_html__('Plugin Version:', 'llm-trace-cleaner'); ?></th>
                                 <td><?php echo esc_html(defined('LLM_TRACE_CLEANER_VERSION') ? LLM_TRACE_CLEANER_VERSION : 'N/A'); ?></td>
+                                <td>-</td>
                             </tr>
+                            <?php
+                            $memory_limit = ini_get('memory_limit');
+                            $memory_recommended = '256M';
+                            $memory_class = $this->compare_value($memory_limit, $memory_recommended, 'memory');
+                            ?>
                             <tr>
                                 <th><?php echo esc_html__('Memory Limit:', 'llm-trace-cleaner'); ?></th>
-                                <td><?php echo esc_html(ini_get('memory_limit')); ?></td>
+                                <td class="<?php echo esc_attr($memory_class); ?>">
+                                    <strong><?php echo esc_html($memory_limit); ?></strong>
+                                </td>
+                                <td><?php echo esc_html($memory_recommended); ?></td>
                             </tr>
+                            <?php
+                            $max_execution_time = ini_get('max_execution_time');
+                            $time_recommended = 120;
+                            $time_class = $this->compare_value($max_execution_time, $time_recommended, 'number');
+                            ?>
                             <tr>
                                 <th><?php echo esc_html__('Max Execution Time:', 'llm-trace-cleaner'); ?></th>
-                                <td><?php echo esc_html(ini_get('max_execution_time')); ?> segundos</td>
+                                <td class="<?php echo esc_attr($time_class); ?>">
+                                    <strong><?php echo esc_html($max_execution_time); ?> segundos</strong>
+                                </td>
+                                <td><?php echo esc_html($time_recommended); ?> segundos</td>
                             </tr>
                             <tr>
                                 <th><?php echo esc_html__('DOMDocument disponible:', 'llm-trace-cleaner'); ?></th>
-                                <td><?php echo class_exists('DOMDocument') ? esc_html__('Sí', 'llm-trace-cleaner') : esc_html__('No', 'llm-trace-cleaner'); ?></td>
+                                <td class="<?php echo class_exists('DOMDocument') ? 'status-ok' : 'status-warning'; ?>">
+                                    <strong><?php echo class_exists('DOMDocument') ? esc_html__('Sí', 'llm-trace-cleaner') : esc_html__('No', 'llm-trace-cleaner'); ?></strong>
+                                </td>
+                                <td><?php echo esc_html__('Sí (recomendado)', 'llm-trace-cleaner'); ?></td>
                             </tr>
                         </tbody>
                     </table>
+                    <p class="description" style="margin-top: 10px;">
+                        <span class="status-ok" style="display: inline-block; width: 12px; height: 12px; background: #46b450; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
+                        <?php echo esc_html__('Verde: Valor correcto o superior al recomendado', 'llm-trace-cleaner'); ?><br>
+                        <span class="status-warning" style="display: inline-block; width: 12px; height: 12px; background: #dc3232; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
+                        <?php echo esc_html__('Rojo: Valor inferior al recomendado (puede causar problemas)', 'llm-trace-cleaner'); ?>
+                    </p>
                 </div>
                 
                 <!-- Logs de errores -->
@@ -658,14 +773,20 @@ class LLM_Trace_Cleaner_Admin {
                         <?php echo esc_html__('Errores capturados durante el proceso de limpieza.', 'llm-trace-cleaner'); ?>
                     </p>
                     
-                    <form method="post" action="" style="margin-bottom: 20px;">
-                        <?php wp_nonce_field('llm_trace_cleaner_clear_debug_log'); ?>
-                        <input type="submit" 
-                               name="llm_trace_cleaner_clear_debug_log" 
-                               class="button button-secondary" 
-                               value="<?php echo esc_attr__('Limpiar todos los logs', 'llm-trace-cleaner'); ?>"
-                               onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todos los logs de depuración?', 'llm-trace-cleaner')); ?>');">
-                    </form>
+                    <div style="margin-bottom: 20px;">
+                        <form method="post" action="" style="display: inline-block; margin-right: 10px;">
+                            <?php wp_nonce_field('llm_trace_cleaner_clear_debug_log'); ?>
+                            <input type="submit" 
+                                   name="llm_trace_cleaner_clear_debug_log" 
+                                   class="button button-secondary" 
+                                   value="<?php echo esc_attr__('Limpiar todos los logs', 'llm-trace-cleaner'); ?>"
+                                   onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todos los logs de depuración?', 'llm-trace-cleaner')); ?>');">
+                        </form>
+                        <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('llm_trace_cleaner_download_debug_log', '1'), 'llm_trace_cleaner_download_debug_log')); ?>" 
+                           class="button button-secondary">
+                            <?php echo esc_html__('Descargar log de depuración', 'llm-trace-cleaner'); ?>
+                        </a>
+                    </div>
                     
                     <?php if (!empty($error_logs)): ?>
                         <table class="wp-list-table widefat fixed striped">
@@ -1177,6 +1298,14 @@ class LLM_Trace_Cleaner_Admin {
             .llm-trace-cleaner-progress-text {
                 min-width: 80px;
                 text-align: right;
+                font-weight: 600;
+            }
+            .status-ok {
+                color: #46b450;
+                font-weight: 600;
+            }
+            .status-warning {
+                color: #dc3232;
                 font-weight: 600;
             }
         </style>
