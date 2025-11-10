@@ -25,6 +25,9 @@ class LLM_Trace_Cleaner_Activator {
         add_option('llm_trace_cleaner_disable_cache', false);
         add_option('llm_trace_cleaner_selected_bots', array());
         add_option('llm_trace_cleaner_custom_bots', '');
+        add_option('llm_trace_cleaner_telemetry_opt_in', false);
+        add_option('llm_trace_cleaner_error_logs', array());
+        add_option('llm_trace_cleaner_debug_logs', array());
         
         // Limpiar cache de rewrite rules
         flush_rewrite_rules();

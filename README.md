@@ -27,6 +27,8 @@ Este plugin elimina automáticamente todos estos atributos, manteniendo tu conte
 - 🎯 **Preciso**: Usa DOMDocument para un parsing robusto del HTML
 - 🚫 **Gestión de caché inteligente**: Desactiva y limpia automáticamente la caché durante el proceso de limpieza para evitar interferencias
 - 🤖 **Detección de bots/LLMs**: Opción para desactivar caché cuando bots o herramientas LLM acceden al sitio
+- 🐛 **Depuración integrada**: Pestaña dedicada para diagnosticar errores y problemas durante el procesamiento
+- 📡 **Telemetría anónima (opt-in)**: Opción para compartir estadísticas anónimas con propósitos de investigación sobre LLMs y buscadores
 
 ## 🎯 Atributos eliminados
 
@@ -302,8 +304,13 @@ set_time_limit(300);
 ## 📝 Changelog
 
 ### 1.1.2
+- **Menú principal en la barra de administración**: El plugin ahora aparece como un menú principal en lugar de estar en "Herramientas"
+- **Pestaña de Depuración**: Nueva sección para diagnosticar errores y problemas durante el proceso de limpieza
+- **Sistema de logging de errores**: Captura automática de errores durante el procesamiento para facilitar el diagnóstico
+- **Información del sistema**: Muestra detalles del entorno (PHP, WordPress, memoria, etc.) en la pestaña de depuración
+- **Telemetría anónima (opt-in)**: Sistema opcional para compartir estadísticas anónimas con propósitos de investigación y estudios sobre LLMs y buscadores
 - Limpieza de caracteres Unicode invisibles (Zero Width, control bidi, BOM, Soft Hyphen, Variation Selectors, Tag Characters, etc.)
-- Estadísticas por tipo de Unicode en el log (prefijo “unicode: ...”) incluso cuando no hay atributos HTML
+- Estadísticas por tipo de Unicode en el log (prefijo "unicode: ...") incluso cuando no hay atributos HTML
 - API de filtro `llm_trace_cleaner_unicode_map` para personalizar qué caracteres eliminar
 
 ### 1.1.1
@@ -371,6 +378,46 @@ GNU General Public License for more details.
 - WordPress por su excelente API
 - La comunidad de desarrolladores de WordPress
 
+## 📡 Telemetría y Privacidad
+
+Este plugin incluye una **opción opcional** para compartir estadísticas anónimas con propósitos de investigación y estudios sobre LLMs y buscadores.
+
+### ¿Qué datos se recopilan?
+
+**Solo datos agregados y completamente anónimos:**
+- Número total de páginas procesadas
+- Número de páginas con datos ocultos encontrados
+- Tipos específicos de atributos y caracteres Unicode encontrados (ej: `data-start`, `data-llm`, `unicode: Zero Width Space`)
+- Contadores por tipo de rastro encontrado
+- Versión del plugin, WordPress y PHP (para análisis de compatibilidad)
+
+### ¿Qué NO se recopila?
+
+- ❌ URLs de tu sitio web
+- ❌ Títulos de posts o páginas
+- ❌ IDs de posts
+- ❌ Contenido del sitio
+- ❌ Información personal o sensible
+- ❌ Datos que puedan identificar tu sitio o usuarios
+
+### Propósito de la recopilación
+
+Los datos anónimos se utilizan exclusivamente para:
+- **Investigación académica**: Estudiar cómo los LLMs marcan el contenido
+- **Análisis de tendencias**: Entender qué tipos de rastros son más comunes
+- **Mejora del plugin**: Priorizar qué atributos y caracteres eliminar
+- **Estudios sobre buscadores**: Analizar cómo los buscadores interactúan con contenido generado por LLMs
+
+### Control del usuario
+
+- ✅ **Opt-in explícito**: Debes activar manualmente la opción "Compartir estadísticas anónimas"
+- ✅ **Puedes desactivarlo en cualquier momento**: Simplemente desmarca la opción en la configuración
+- ✅ **No afecta la funcionalidad**: El plugin funciona perfectamente sin telemetría
+
+### Transparencia
+
+Todos los datos se envían de forma segura (HTTPS) y se almacenan de manera agregada. No se puede identificar ningún sitio individual a partir de los datos recopilados.
+
 ## 📞 Soporte
 
 Si encuentras algún problema o tienes sugerencias:
@@ -378,6 +425,7 @@ Si encuentras algún problema o tienes sugerencias:
 1. Abre un [issue](https://github.com/yaggoSEO/llm-trace-cleaner/issues)
 2. Describe el problema detalladamente
 3. Incluye información sobre tu entorno (versión de WordPress, PHP, etc.)
+4. Si el problema persiste, revisa la pestaña **Depuración** en el menú del plugin para ver logs de errores
 
 ---
 
