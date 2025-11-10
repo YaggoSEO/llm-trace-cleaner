@@ -280,21 +280,9 @@ class LLM_Trace_Cleaner_Logger {
         }
         
         $detected = array();
-        $attributes_to_check = array(
-            'data-start',
-            'data-end',
-            'data-is-last-node',
-            'data-is-only-node',
-            'data-llm',
-            'data-pm-slice',
-            'data-llm-id',
-            'data-llm-trace',
-            'data-original-text',
-            'data-source-text',
-            'data-highlight',
-            'data-entity',
-            'data-mention',
-        );
+        // Usar la misma lista que el limpiador (incluye filtros)
+        $cleaner = new LLM_Trace_Cleaner_Cleaner();
+        $attributes_to_check = $cleaner->get_attributes_to_remove();
         
         // Contar atributos en el contenido original
         foreach ($attributes_to_check as $attr) {

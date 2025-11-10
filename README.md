@@ -45,6 +45,28 @@ El plugin elimina los siguientes atributos cuando aparecen en el HTML:
 - `data-highlight`
 - `data-entity`
 - `data-mention`
+- `data-offset-key`
+- `data-message-id`
+- `data-sender` / `data-role`
+- `data-token-index`
+- `data-model`
+- `data-render-timestamp`
+- `data-update-timestamp`
+- `data-confidence`
+- `data-temperature`
+- `data-seed`
+- `data-step`
+- `data-lang`
+- `data-format`
+- `data-annotation`
+- `data-reference`
+- `data-version`
+- `data-error`
+- `data-stream-id`
+- `data-chunk`
+- `data-context-id`
+- `data-user-id`
+- `data-ui-state`
 - Cualquier atributo `id` cuyo valor empiece por `model-response-message-contentr_`
 
 ## 📦 Requisitos
@@ -261,6 +283,11 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.1.1
+- Ampliación de la lista de atributos eliminados (soporte para `data-offset-key`, `data-message-id`, `data-sender`/`data-role`, `data-token-index`, `data-model`, `data-render-timestamp`, `data-update-timestamp`, `data-confidence`, `data-temperature`, `data-seed`, `data-step`, `data-lang`, `data-format`, `data-annotation`, `data-reference`, `data-version`, `data-error`, `data-stream-id`, `data-chunk`, `data-context-id`, `data-user-id`, `data-ui-state`)
+- Nueva API de filtro `llm_trace_cleaner_attributes` para extender atributos sin tocar el core
+- El logger usa la misma lista del limpiador para detectar y reportar atributos eliminados con precisión
 
 ### 1.1.0
 - Sistema de gestión de caché inteligente

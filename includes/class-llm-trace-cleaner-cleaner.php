@@ -13,7 +13,7 @@ defined('ABSPATH') || exit;
 class LLM_Trace_Cleaner_Cleaner {
     
     /**
-     * Atributos a eliminar
+     * Atributos a eliminar (base). Se puede ampliar vía filtro 'llm_trace_cleaner_attributes'
      */
     private $attributes_to_remove = array(
         'data-start',
@@ -29,6 +29,30 @@ class LLM_Trace_Cleaner_Cleaner {
         'data-highlight',
         'data-entity',
         'data-mention',
+        // Nuevos atributos
+        'data-offset-key',
+        'data-message-id',
+        'data-sender',
+        'data-role',
+        'data-token-index',
+        'data-model',
+        'data-render-timestamp',
+        'data-update-timestamp',
+        'data-confidence',
+        'data-temperature',
+        'data-seed',
+        'data-step',
+        'data-lang',
+        'data-format',
+        'data-annotation',
+        'data-reference',
+        'data-version',
+        'data-error',
+        'data-stream-id',
+        'data-chunk',
+        'data-context-id',
+        'data-user-id',
+        'data-ui-state',
     );
     
     /**
@@ -125,7 +149,7 @@ class LLM_Trace_Cleaner_Cleaner {
         }
         
         // Eliminar atributos específicos
-        foreach ($this->attributes_to_remove as $attr) {
+        foreach ($this->get_attributes_to_remove() as $attr) {
             if ($element->hasAttribute($attr)) {
                 $element->removeAttribute($attr);
                 $this->increment_stat($attr);
@@ -152,7 +176,7 @@ class LLM_Trace_Cleaner_Cleaner {
         $cleaned = $html;
         
         // Eliminar cada atributo usando regex
-        foreach ($this->attributes_to_remove as $attr) {
+        foreach ($this->get_attributes_to_remove() as $attr) {
             $pattern = '/\s+' . preg_quote($attr, '/') . '(?:\s*=\s*["\'][^"\']*["\'])?/i';
             $count = 0;
             $cleaned = preg_replace($pattern, '', $cleaned, -1, $count);
@@ -170,6 +194,22 @@ class LLM_Trace_Cleaner_Cleaner {
         }
         
         return $cleaned;
+    }
+
+    /**
+     * Obtener lista de atributos (después de aplicar filtros)
+     *
+     * @return array
+     */
+    public function get_attributes_to_remove() {
+        $attrs = $this->attributes_to_remove;
+        /**
+         * Permite ampliar o modificar la lista de atributos a eliminar.
+         *
+         * @param array $attrs
+         */
+        $attrs = apply_filters('llm_trace_cleaner_attributes', $attrs);
+        return array_values(array_unique(array_filter($attrs)));
     }
     
     /**
