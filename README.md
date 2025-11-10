@@ -303,6 +303,17 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.1.8
+- **Mejora en decodificación Unicode**: Sistema mejorado para manejar múltiples formatos de secuencias Unicode (`u003c`, `\u003c`, `&#x003c;`, etc.)
+- **Verificación de caracteres invisibles**: El sistema ahora verifica que los caracteres Unicode decodificados no sean caracteres invisibles que estamos eliminando
+- **Eliminación inteligente**: Los caracteres invisibles se eliminan automáticamente durante la decodificación, evitando problemas de formateo
+- **Soporte para múltiples formatos**: Ahora se manejan correctamente formatos como `u003c`, `\u003c`, y entidades HTML hexadecimales
+
+### 1.1.7
+- **Corrección de formato HTML**: Solucionado el problema donde el texto aparecía con secuencias Unicode mal formateadas (ej: `u003c` en lugar de `<`) después de eliminar caracteres Unicode invisibles
+- **Decodificación de secuencias Unicode**: Implementada decodificación automática de secuencias Unicode como `u003c`, `u003e`, etc. a sus caracteres HTML correspondientes
+- **Mejora en el formateo**: El HTML ahora se mantiene correctamente formateado después de la limpieza, asegurando que las etiquetas HTML se muestren correctamente
+
 ### 1.1.6
 - **Corrección crítica de procesamiento por lotes**: Solucionado el problema donde el proceso se quedaba atascado en un offset específico (ej: offset 64) y no continuaba procesando posts
 - **Mejora en la consulta de posts**: Ahora se obtienen todos los IDs al inicio del proceso y se procesan usando `post__in` en lugar de `offset`, evitando problemas con filtros de plugins

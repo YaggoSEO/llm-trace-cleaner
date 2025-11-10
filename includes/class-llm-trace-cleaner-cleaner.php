@@ -76,6 +76,10 @@ class LLM_Trace_Cleaner_Cleaner {
             return $html;
         }
         
+        // Primero, decodificar secuencias Unicode como u003c, u003e, etc.
+        // Esto corrige problemas donde el HTML aparece como u003ccodeu003e en lugar de <code>
+        $html = $this->decode_unicode_sequences($html);
+        
         // Resetear estadísticas
         $this->last_stats = array();
         
@@ -86,6 +90,115 @@ class LLM_Trace_Cleaner_Cleaner {
             // Fallback a expresiones regulares si DOMDocument no está disponible
             return $this->clean_with_regex($html);
         }
+    }
+    
+    /**
+     * Decodificar secuencias Unicode como u003c, u003e, etc. a sus caracteres correspondientes
+     * Esto corrige problemas donde el HTML aparece mal formateado después de eliminar Unicode
+     *
+     * @param string $html Contenido HTML
+     * @return string HTML con secuencias Unicode decodificadas
+     */
+    private function decode_unicode_sequences($html) {
+        // Decodificar diferentes formatos de secuencias Unicode:
+        // 1. Formato u003c (sin backslash)
+        // 2. Formato \u003c (con backslash)
+        // 3. Formato &#x003c; (entidad HTML hexadecimal)
+        // 4. Formato &#60; (entidad HTML decimal)
+        
+        // Formato 1: u003c (sin backslash) - el más común en el problema reportado
+        $html = preg_replace_callback('/u([0-9a-fA-F]{4})/u', function($matches) {
+            return $this->decode_unicode_char($matches[1]);
+        }, $html);
+        
+        // Formato 2: \u003c (con backslash) - formato estándar de escape Unicode
+        $html = preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/u', function($matches) {
+            return $this->decode_unicode_char($matches[1]);
+        }, $html);
+        
+        // Formato 3: &#x003c; (entidad HTML hexadecimal) - ya debería estar manejado por html_entity_decode
+        // pero lo verificamos por si acaso
+        $html = preg_replace_callback('/&#x([0-9a-fA-F]{1,6});/iu', function($matches) {
+            $code = intval($matches[1], 16);
+            // Solo decodificar si no es un carácter invisible que estamos eliminando
+            if (!$this->is_invisible_unicode_char($code)) {
+                return $this->decode_unicode_char($matches[1], 16);
+            }
+            return $matches[0]; // Mantener si es invisible
+        }, $html);
+        
+        return $html;
+    }
+    
+    /**
+     * Decodificar un código Unicode a su carácter correspondiente
+     *
+     * @param string $hex_code Código hexadecimal (4 dígitos)
+     * @param int $base Base numérica (16 para hexadecimal, 10 para decimal)
+     * @return string Carácter decodificado
+     */
+    private function decode_unicode_char($hex_code, $base = 16) {
+        $code = intval($hex_code, $base);
+        
+        // No decodificar caracteres invisibles que estamos eliminando
+        if ($this->is_invisible_unicode_char($code)) {
+            return ''; // Eliminar caracteres invisibles
+        }
+        
+        // Solo decodificar si es un carácter válido
+        if ($code >= 32 && $code <= 126) { // Caracteres ASCII imprimibles
+            return chr($code);
+        } elseif ($code > 126 && $code <= 0x10FFFF) { // Caracteres Unicode válidos
+            // Para caracteres Unicode más allá de ASCII, usar mb_chr si está disponible
+            if (function_exists('mb_chr')) {
+                return mb_chr($code, 'UTF-8');
+            } else {
+                // Fallback: convertir a entidad HTML
+                return '&#x' . str_pad(dechex($code), 4, '0', STR_PAD_LEFT) . ';';
+            }
+        }
+        
+        return ''; // Eliminar caracteres inválidos
+    }
+    
+    /**
+     * Verificar si un código Unicode es un carácter invisible que estamos eliminando
+     *
+     * @param int $code Código Unicode
+     * @return bool True si es un carácter invisible que eliminamos
+     */
+    private function is_invisible_unicode_char($code) {
+        // Lista de códigos Unicode invisibles que eliminamos
+        $invisible_codes = array(
+            0x200B, // Zero Width Space
+            0x200C, // Zero Width Non-Joiner
+            0x200D, // Zero Width Joiner
+            0xFEFF, // Zero Width No-Break Space / BOM
+            0x2060, // Word Joiner
+            0x00AD, // Soft Hyphen
+            0x2063, // Invisible Separator
+            0x2064, // Invisible Plus
+            0x2062, // Invisible Times
+            0x200E, // Left-to-Right Mark
+            0x200F, // Right-to-Left Mark
+            0x202A, // Left-to-Right Embedding
+            0x202B, // Right-to-Left Embedding
+            0x202C, // Pop Directional Formatting
+            0x202D, // Left-to-Right Override
+            0x202E, // Right-to-Left Override
+            0x180E, // Mongolian Vowel Separator
+            0x3000, // Invisible Ideographic Space
+            0xFFFC, // Object Replacement Character
+        );
+        
+        // Rangos de caracteres invisibles
+        if (($code >= 0x2066 && $code <= 0x2069) || // Bidirectional Isolates
+            ($code >= 0xE0000 && $code <= 0xE007F) || // Tag Characters
+            ($code >= 0xFE00 && $code <= 0xFE0F)) { // Variation Selectors
+            return true;
+        }
+        
+        return in_array($code, $invisible_codes);
     }
     
     /**
@@ -249,6 +362,19 @@ class LLM_Trace_Cleaner_Cleaner {
                 $this->increment_stat('unicode: ' . $label, $count);
             }
         }
+        
+        // Asegurar que las entidades HTML estén correctamente formateadas después de eliminar Unicode
+        // Decodificar entidades HTML que puedan haberse corrompido
+        $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        
+        // Volver a codificar solo las entidades necesarias para mantener el HTML válido
+        // Esto asegura que < y > se mantengan como caracteres, no como entidades
+        $html = str_replace(
+            array('&lt;', '&gt;', '&amp;', '&quot;', '&#039;'),
+            array('<', '>', '&', '"', "'"),
+            $html
+        );
+        
         return $html;
     }
 
