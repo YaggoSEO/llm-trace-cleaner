@@ -307,6 +307,8 @@ set_time_limit(300);
 - **Corrección crítica de procesamiento por lotes**: Solucionado el problema donde el proceso se quedaba atascado en un offset específico (ej: offset 64) y no continuaba procesando posts
 - **Mejora en la consulta de posts**: Ahora se obtienen todos los IDs al inicio del proceso y se procesan usando `post__in` en lugar de `offset`, evitando problemas con filtros de plugins
 - **Mayor confiabilidad**: El sistema ahora procesa exactamente los posts identificados al inicio, sin depender de consultas con offset que pueden fallar
+- **Actualización directa sin hooks**: Implementada actualización directa a la base de datos para evitar ejecutar los hooks de `save_post` (WPML, WooCommerce, RankMath, Divi Builder, etc.) que causaban bloqueos
+- **Rendimiento mejorado**: El proceso de limpieza es ahora mucho más rápido al evitar la ejecución de todos los callbacks de plugins durante la actualización de posts
 
 ### 1.1.5
 - **Detección de conflictos de plugins**: Sistema mejorado para identificar qué plugins pueden estar causando que el proceso de limpieza se detenga o sea lento

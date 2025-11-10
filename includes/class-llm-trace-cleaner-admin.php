@@ -391,11 +391,9 @@ class LLM_Trace_Cleaner_Admin {
                         // Medir tiempo de actualización
                         $update_start_time = microtime(true);
                         
-                        // Actualizar el post
-                        $update_result = wp_update_post(array(
-                            'ID' => $post_id,
-                            'post_content' => $cleaned_content
-                        ));
+                        // Actualizar el post SIN hooks para evitar bloqueos de plugins pesados
+                        // Esto evita ejecutar los 50+ hooks de save_post (WPML, WooCommerce, RankMath, etc.)
+                        $update_result = $this->update_post_without_hooks($post_id, $cleaned_content);
                         
                         $update_time = microtime(true) - $update_start_time;
                         
@@ -409,8 +407,8 @@ class LLM_Trace_Cleaner_Admin {
                             ));
                         }
                         
-                        if (is_wp_error($update_result)) {
-                            $this->log_error($update_result->get_error_message(), "Post ID: {$post_id}, Título: {$post->post_title}");
+                        if ($update_result === false) {
+                            $this->log_error('Error al actualizar post en la base de datos', "Post ID: {$post_id}, Título: {$post->post_title}");
                             continue;
                         }
                         
@@ -732,6 +730,40 @@ class LLM_Trace_Cleaner_Admin {
     private function clear_debug_logs() {
         delete_option('llm_trace_cleaner_error_logs');
         delete_option('llm_trace_cleaner_debug_logs');
+    }
+    
+    /**
+     * Actualizar post sin ejecutar hooks de save_post
+     * Esto evita bloqueos causados por plugins pesados como WPML, WooCommerce, RankMath, etc.
+     * 
+     * @param int $post_id ID del post a actualizar
+     * @param string $post_content Contenido nuevo del post
+     * @return int|false ID del post si se actualizó correctamente, false en caso de error
+     */
+    private function update_post_without_hooks($post_id, $post_content) {
+        global $wpdb;
+        
+        // Actualizar directamente en la base de datos para evitar hooks
+        $result = $wpdb->update(
+            $wpdb->posts,
+            array(
+                'post_content' => $post_content,
+                'post_modified' => current_time('mysql'),
+                'post_modified_gmt' => current_time('mysql', 1)
+            ),
+            array('ID' => $post_id),
+            array('%s', '%s', '%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            // Limpiar caché de WordPress
+            clean_post_cache($post_id);
+            
+            return $post_id;
+        }
+        
+        return false;
     }
     
     /**

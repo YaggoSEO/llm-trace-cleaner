@@ -137,6 +137,40 @@ if (!class_exists('LLM_Trace_Cleaner')) {
     }
     
     /**
+     * Actualizar post sin ejecutar hooks de save_post
+     * Esto evita bloqueos causados por plugins pesados como WPML, WooCommerce, RankMath, etc.
+     * 
+     * @param int $post_id ID del post a actualizar
+     * @param string $post_content Contenido nuevo del post
+     * @return int|false ID del post si se actualizó correctamente, false en caso de error
+     */
+    private function update_post_without_hooks($post_id, $post_content) {
+        global $wpdb;
+        
+        // Actualizar directamente en la base de datos para evitar hooks
+        $result = $wpdb->update(
+            $wpdb->posts,
+            array(
+                'post_content' => $post_content,
+                'post_modified' => current_time('mysql'),
+                'post_modified_gmt' => current_time('mysql', 1)
+            ),
+            array('ID' => $post_id),
+            array('%s', '%s', '%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            // Limpiar caché de WordPress
+            clean_post_cache($post_id);
+            
+            return $post_id;
+        }
+        
+        return false;
+    }
+    
+    /**
      * Limpiar automáticamente el contenido al guardar
      */
     public function auto_clean_post($post_id, $post) {
@@ -170,11 +204,17 @@ if (!class_exists('LLM_Trace_Cleaner')) {
             // Remover el hook para evitar loop infinito
             remove_action('save_post', array($this, 'auto_clean_post'), 10);
             
-            // Actualizar el post
-            wp_update_post(array(
-                'ID' => $post_id,
-                'post_content' => $cleaned_content
-            ));
+            // Actualizar el post SIN hooks para evitar bloqueos de plugins pesados
+            // Esto evita ejecutar los 50+ hooks de save_post (WPML, WooCommerce, RankMath, etc.)
+            $update_result = $this->update_post_without_hooks($post_id, $cleaned_content);
+            
+            if ($update_result === false) {
+                // Si falla la actualización directa, intentar con wp_update_post como fallback
+                wp_update_post(array(
+                    'ID' => $post_id,
+                    'post_content' => $cleaned_content
+                ));
+            }
             
             // Limpiar caché del post modificado
             LLM_Trace_Cleaner_Cache::clear_post_cache($post_id);
