@@ -303,6 +303,14 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.1.5
+- **Detección de conflictos de plugins**: Sistema mejorado para identificar qué plugins pueden estar causando que el proceso de limpieza se detenga o sea lento
+- **Medición de tiempos de procesamiento**: Registro detallado del tiempo que tarda cada post en procesarse y actualizarse
+- **Información de plugins activos**: Nueva sección en la pestaña de Depuración que muestra todos los plugins activos y sus versiones
+- **Análisis de hooks de WordPress**: Visualización de todos los hooks relacionados con `save_post` que podrían interferir con el proceso
+- **Alertas de posts lentos**: El sistema detecta y registra posts que tardan más de 2 segundos en actualizarse o más de 5 segundos en procesarse completamente
+- **Logging mejorado**: Información del sistema (plugins y hooks) se registra al inicio de cada proceso de limpieza para facilitar el diagnóstico
+
 ### 1.1.4
 - **Información del sistema mejorada**: Valores recomendados mostrados junto a los valores actuales con indicadores de color (verde para valores correctos, rojo para valores inferiores)
 - **Descarga de log de depuración**: Nuevo botón para descargar todos los logs de depuración y errores en un archivo

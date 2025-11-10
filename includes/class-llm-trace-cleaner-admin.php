@@ -251,6 +251,16 @@ class LLM_Trace_Cleaner_Admin {
             $offset = isset($_POST['offset']) ? absint($_POST['offset']) : 0;
             $batch_size = get_option('llm_trace_cleaner_batch_size', 10); // Obtener tamaño del lote desde configuración
             
+            // Registrar información del sistema solo en el primer lote (offset 0)
+            if ($offset === 0) {
+                $this->log_debug('Información del sistema al iniciar', array(
+                    'active_plugins' => $this->get_active_plugins_info(),
+                    'hooks_on_save_post' => $this->get_hooks_on_save_post(),
+                    'memory_limit' => ini_get('memory_limit'),
+                    'max_execution_time' => ini_get('max_execution_time')
+                ));
+            }
+            
             $this->log_debug('Lote iniciado', array(
                 'process_id' => $process_id,
                 'offset' => $offset,
@@ -307,9 +317,12 @@ class LLM_Trace_Cleaner_Admin {
             
             $batch_modified = 0;
             $batch_stats = array();
+            $batch_start_time = microtime(true);
             
             foreach ($posts as $post_id) {
                 try {
+                    $post_start_time = microtime(true);
+                    
                     $post = get_post($post_id);
                     if (!$post) {
                         $this->log_debug('Post no encontrado', array('post_id' => $post_id));
@@ -320,11 +333,26 @@ class LLM_Trace_Cleaner_Admin {
                     $cleaned_content = $cleaner->clean_html($original_content);
                     
                     if ($cleaned_content !== $original_content) {
+                        // Medir tiempo de actualización
+                        $update_start_time = microtime(true);
+                        
                         // Actualizar el post
                         $update_result = wp_update_post(array(
                             'ID' => $post_id,
                             'post_content' => $cleaned_content
                         ));
+                        
+                        $update_time = microtime(true) - $update_start_time;
+                        
+                        // Si tarda más de 2 segundos, registrar como sospechoso
+                        if ($update_time > 2) {
+                            $this->log_debug('Post tardó mucho en actualizar', array(
+                                'post_id' => $post_id,
+                                'post_title' => $post->post_title,
+                                'update_time' => round($update_time, 2) . ' segundos',
+                                'warning' => 'Posible interferencia de plugin'
+                            ));
+                        }
                         
                         if (is_wp_error($update_result)) {
                             $this->log_error($update_result->get_error_message(), "Post ID: {$post_id}, Título: {$post->post_title}");
@@ -349,6 +377,20 @@ class LLM_Trace_Cleaner_Admin {
                         $logger->log_action('manual', $post_id, $post->post_title, $stats, true, $original_content, $cleaned_content);
                     }
                     
+                    $post_total_time = microtime(true) - $post_start_time;
+                    
+                    // Si un post tarda más de 5 segundos en total, registrar como problema
+                    if ($post_total_time > 5) {
+                        $this->log_error('Post procesado muy lentamente', array(
+                            'post_id' => $post_id,
+                            'post_title' => $post->post_title,
+                            'time' => round($post_total_time, 2) . ' segundos',
+                            'update_time' => isset($update_time) ? round($update_time, 2) . ' segundos' : 'N/A',
+                            'active_plugins_count' => count($this->get_active_plugins_info()),
+                            'suggestion' => 'Revisa plugins que interceptan save_post'
+                        ));
+                    }
+                    
                     // Limpiar memoria después de cada post
                     unset($post);
                     unset($original_content);
@@ -358,6 +400,8 @@ class LLM_Trace_Cleaner_Admin {
                     continue; // Continuar con el siguiente post
                 }
             }
+            
+            $batch_total_time = microtime(true) - $batch_start_time;
             
             // Limpiar memoria
             wp_reset_postdata();
@@ -383,6 +427,8 @@ class LLM_Trace_Cleaner_Admin {
                 'total_processed' => $process_state['processed'],
                 'total_remaining' => $process_state['total'] - $process_state['processed'],
                 'progress_percent' => round(($process_state['processed'] / $process_state['total']) * 100, 2) . '%',
+                'batch_time' => round($batch_total_time, 2) . ' segundos',
+                'avg_time_per_post' => count($posts) > 0 ? round($batch_total_time / count($posts), 2) . ' segundos' : 'N/A',
                 'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB',
                 'memory_peak' => round(memory_get_peak_usage(true) / 1024 / 1024, 2) . ' MB',
                 'is_complete' => $process_state['processed'] >= $process_state['total']
@@ -666,11 +712,102 @@ class LLM_Trace_Cleaner_Admin {
         if ($type === 'memory') {
             $current_bytes = $this->convert_to_bytes($current);
             $recommended_bytes = $this->convert_to_bytes($recommended);
+            // Si el valor actual es ilimitado (PHP_INT_MAX), siempre es OK
+            if ($current_bytes === PHP_INT_MAX) {
+                return 'status-ok';
+            }
             return $current_bytes >= $recommended_bytes ? 'status-ok' : 'status-warning';
         } else {
             // Para números (tiempo de ejecución, etc.)
-            return (int)$current >= (int)$recommended ? 'status-ok' : 'status-warning';
+            $current_int = (int)$current;
+            $recommended_int = (int)$recommended;
+            // Si el valor actual es 0, significa sin límite, por lo que es OK
+            if ($current_int === 0) {
+                return 'status-ok';
+            }
+            return $current_int >= $recommended_int ? 'status-ok' : 'status-warning';
         }
+    }
+    
+    /**
+     * Obtener información de plugins activos
+     */
+    private function get_active_plugins_info() {
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        
+        $active_plugins = get_option('active_plugins', array());
+        $all_plugins = get_plugins();
+        $active_plugins_info = array();
+        
+        foreach ($active_plugins as $plugin) {
+            if (isset($all_plugins[$plugin])) {
+                $active_plugins_info[] = array(
+                    'name' => $all_plugins[$plugin]['Name'],
+                    'path' => $plugin,
+                    'version' => $all_plugins[$plugin]['Version']
+                );
+            }
+        }
+        
+        return $active_plugins_info;
+    }
+    
+    /**
+     * Obtener información de callbacks en un hook
+     */
+    private function get_callback_info($callback) {
+        if (is_string($callback)) {
+            return $callback;
+        } elseif (is_array($callback)) {
+            if (is_object($callback[0])) {
+                return get_class($callback[0]) . '::' . $callback[1];
+            } else {
+                return $callback[0] . '::' . $callback[1];
+            }
+        } elseif (is_object($callback) && ($callback instanceof Closure)) {
+            return 'Closure';
+        }
+        return 'Unknown';
+    }
+    
+    /**
+     * Obtener hooks relacionados con save_post que podrían interferir
+     */
+    private function get_hooks_on_save_post() {
+        global $wp_filter;
+        
+        $hooks_info = array();
+        
+        // Hooks relacionados con save_post que podrían interferir
+        $related_hooks = array(
+            'save_post',
+            'wp_insert_post',
+            'wp_insert_post_data',
+            'pre_post_update',
+            'post_updated',
+            'edit_post'
+        );
+        
+        foreach ($related_hooks as $hook_name) {
+            if (isset($wp_filter[$hook_name])) {
+                $callbacks = array();
+                foreach ($wp_filter[$hook_name]->callbacks as $priority => $functions) {
+                    foreach ($functions as $function) {
+                        $callbacks[] = array(
+                            'priority' => $priority,
+                            'function' => $this->get_callback_info($function['function'])
+                        );
+                    }
+                }
+                if (!empty($callbacks)) {
+                    $hooks_info[$hook_name] = $callbacks;
+                }
+            }
+        }
+        
+        return $hooks_info;
     }
     
     /**
@@ -764,6 +901,88 @@ class LLM_Trace_Cleaner_Admin {
                         <span class="status-warning" style="display: inline-block; width: 12px; height: 12px; background: #dc3232; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
                         <?php echo esc_html__('Rojo: Valor inferior al recomendado (puede causar problemas)', 'llm-trace-cleaner'); ?>
                     </p>
+                </div>
+                
+                <!-- Información de plugins y hooks -->
+                <div class="llm-trace-cleaner-section">
+                    <h2><?php echo esc_html__('Plugins Activos y Hooks', 'llm-trace-cleaner'); ?></h2>
+                    <p class="description">
+                        <?php echo esc_html__('Información sobre plugins activos y hooks que podrían interferir con el proceso de limpieza.', 'llm-trace-cleaner'); ?>
+                    </p>
+                    
+                    <?php
+                    $active_plugins = $this->get_active_plugins_info();
+                    $hooks_info = $this->get_hooks_on_save_post();
+                    ?>
+                    
+                    <h3><?php echo esc_html__('Plugins Activos', 'llm-trace-cleaner'); ?></h3>
+                    <p class="description">
+                        <?php echo esc_html(sprintf(__('Total: %d plugins activos', 'llm-trace-cleaner'), count($active_plugins))); ?>
+                    </p>
+                    
+                    <?php if (!empty($active_plugins)): ?>
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60%;"><?php echo esc_html__('Nombre del Plugin', 'llm-trace-cleaner'); ?></th>
+                                    <th style="width: 20%;"><?php echo esc_html__('Versión', 'llm-trace-cleaner'); ?></th>
+                                    <th style="width: 20%;"><?php echo esc_html__('Ruta', 'llm-trace-cleaner'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($active_plugins as $plugin): ?>
+                                    <tr>
+                                        <td><strong><?php echo esc_html($plugin['name']); ?></strong></td>
+                                        <td><?php echo esc_html($plugin['version']); ?></td>
+                                        <td><code style="font-size: 11px;"><?php echo esc_html($plugin['path']); ?></code></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php else: ?>
+                        <p><?php echo esc_html__('No se pudieron obtener los plugins activos.', 'llm-trace-cleaner'); ?></p>
+                    <?php endif; ?>
+                    
+                    <h3 style="margin-top: 30px;"><?php echo esc_html__('Hooks Relacionados con save_post', 'llm-trace-cleaner'); ?></h3>
+                    <p class="description">
+                        <?php echo esc_html__('Estos hooks pueden interceptar el proceso de actualización de posts y causar lentitud o bloqueos.', 'llm-trace-cleaner'); ?>
+                    </p>
+                    
+                    <?php if (!empty($hooks_info)): ?>
+                        <?php foreach ($hooks_info as $hook_name => $callbacks): ?>
+                            <h4 style="margin-top: 20px; margin-bottom: 10px;">
+                                <code><?php echo esc_html($hook_name); ?></code>
+                                <span style="font-weight: normal; color: #666;">
+                                    (<?php echo esc_html(count($callbacks)); ?> <?php echo esc_html__('callback(s)', 'llm-trace-cleaner'); ?>)
+                                </span>
+                            </h4>
+                            <table class="wp-list-table widefat fixed striped" style="margin-bottom: 20px;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 100px;"><?php echo esc_html__('Prioridad', 'llm-trace-cleaner'); ?></th>
+                                        <th><?php echo esc_html__('Función/Callback', 'llm-trace-cleaner'); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($callbacks as $callback): ?>
+                                        <tr>
+                                            <td><code><?php echo esc_html($callback['priority']); ?></code></td>
+                                            <td><code><?php echo esc_html($callback['function']); ?></code></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p><?php echo esc_html__('No se encontraron hooks relacionados con save_post.', 'llm-trace-cleaner'); ?></p>
+                    <?php endif; ?>
+                    
+                    <div class="notice notice-info" style="margin-top: 20px;">
+                        <p>
+                            <strong><?php echo esc_html__('Consejo:', 'llm-trace-cleaner'); ?></strong>
+                            <?php echo esc_html__('Si el proceso de limpieza se detiene o es muy lento, revisa los logs de depuración para ver qué posts tardan mucho. Luego, desactiva temporalmente los plugins que aparecen en los hooks de save_post para identificar el conflicto.', 'llm-trace-cleaner'); ?>
+                        </p>
+                    </div>
                 </div>
                 
                 <!-- Logs de errores -->
@@ -1300,12 +1519,16 @@ class LLM_Trace_Cleaner_Admin {
                 text-align: right;
                 font-weight: 600;
             }
-            .status-ok {
-                color: #46b450;
+            .llm-trace-cleaner-admin .status-ok,
+            .llm-trace-cleaner-admin td.status-ok,
+            .llm-trace-cleaner-admin td.status-ok strong {
+                color: #46b450 !important;
                 font-weight: 600;
             }
-            .status-warning {
-                color: #dc3232;
+            .llm-trace-cleaner-admin .status-warning,
+            .llm-trace-cleaner-admin td.status-warning,
+            .llm-trace-cleaner-admin td.status-warning strong {
+                color: #dc3232 !important;
                 font-weight: 600;
             }
         </style>
