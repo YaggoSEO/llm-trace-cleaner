@@ -305,10 +305,11 @@ set_time_limit(300);
 
 ### 1.1.2
 - **Menú principal en la barra de administración**: El plugin ahora aparece como un menú principal en lugar de estar en "Herramientas"
+- **Configuración de posts por lote**: Nueva opción para ajustar el número de posts procesados por lote (recomendado entre 10 y 30 según el servidor)
 - **Pestaña de Depuración**: Nueva sección para diagnosticar errores y problemas durante el proceso de limpieza
 - **Sistema de logging de errores**: Captura automática de errores durante el procesamiento para facilitar el diagnóstico
 - **Información del sistema**: Muestra detalles del entorno (PHP, WordPress, memoria, etc.) en la pestaña de depuración
-- **Telemetría anónima (opt-in)**: Sistema opcional para compartir estadísticas anónimas con propósitos de investigación y estudios sobre LLMs y buscadores
+- **Telemetría anónima (opt-in, activada por defecto)**: Sistema opcional para compartir estadísticas anónimas con propósitos de investigación y estudios sobre LLMs y buscadores
 - Limpieza de caracteres Unicode invisibles (Zero Width, control bidi, BOM, Soft Hyphen, Variation Selectors, Tag Characters, etc.)
 - Estadísticas por tipo de Unicode en el log (prefijo "unicode: ...") incluso cuando no hay atributos HTML
 - API de filtro `llm_trace_cleaner_unicode_map` para personalizar qué caracteres eliminar

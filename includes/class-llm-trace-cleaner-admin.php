@@ -52,7 +52,7 @@ class LLM_Trace_Cleaner_Admin {
             'manage_options',
             'llm-trace-cleaner',
             array($this, 'render_admin_page'),
-            'dashicons-clean', // Icono de limpieza
+            'dashicons-admin-tools', // Icono de herramientas (más visible)
             30 // Posición en el menú
         );
         
@@ -108,6 +108,13 @@ class LLM_Trace_Cleaner_Admin {
             // Telemetría opt-in
             $telemetry_opt_in = isset($_POST['llm_trace_cleaner_telemetry_opt_in']) ? true : false;
             update_option('llm_trace_cleaner_telemetry_opt_in', $telemetry_opt_in);
+            
+            // Tamaño del lote
+            $batch_size = isset($_POST['llm_trace_cleaner_batch_size']) ? absint($_POST['llm_trace_cleaner_batch_size']) : 10;
+            // Validar que esté entre 1 y 100
+            if ($batch_size < 1) $batch_size = 1;
+            if ($batch_size > 100) $batch_size = 100;
+            update_option('llm_trace_cleaner_batch_size', $batch_size);
             
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-success is-dismissible"><p>' . 
@@ -201,7 +208,7 @@ class LLM_Trace_Cleaner_Admin {
         try {
             $process_id = isset($_POST['process_id']) ? sanitize_text_field($_POST['process_id']) : '';
             $offset = isset($_POST['offset']) ? absint($_POST['offset']) : 0;
-            $batch_size = 10; // Procesar 10 posts por lote
+            $batch_size = get_option('llm_trace_cleaner_batch_size', 10); // Obtener tamaño del lote desde configuración
             
             $this->log_debug('Iniciando lote de procesamiento', array(
                 'process_id' => $process_id,
@@ -329,8 +336,8 @@ class LLM_Trace_Cleaner_Admin {
                     'modified' => $process_state['modified']
                 ));
                 
-                // Telemetría anónima (opt-in)
-                if (get_option('llm_trace_cleaner_telemetry_opt_in', false)) {
+                // Telemetría anónima (opt-in, activada por defecto)
+                if (get_option('llm_trace_cleaner_telemetry_opt_in', true)) {
                     $this->send_anonymous_telemetry($process_state);
                 }
             }
@@ -877,6 +884,26 @@ class LLM_Trace_Cleaner_Admin {
                             </tr>
                             <tr>
                                 <th scope="row">
+                                    <label for="llm_trace_cleaner_batch_size">
+                                        <?php echo esc_html__('Posts por lote', 'llm-trace-cleaner'); ?>
+                                    </label>
+                                </th>
+                                <td>
+                                    <input type="number"
+                                           name="llm_trace_cleaner_batch_size"
+                                           id="llm_trace_cleaner_batch_size"
+                                           value="<?php echo esc_attr(get_option('llm_trace_cleaner_batch_size', 10)); ?>"
+                                           min="1"
+                                           max="100"
+                                           step="1"
+                                           class="small-text">
+                                    <p class="description">
+                                        <?php echo esc_html__('Número de posts a procesar por lote. Se recomienda entre 10 y 30 dependiendo del servidor. Valores más altos pueden causar timeouts en servidores con recursos limitados.', 'llm-trace-cleaner'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
                                     <label for="llm_trace_cleaner_telemetry_opt_in">
                                         <?php echo esc_html__('Compartir estadísticas anónimas', 'llm-trace-cleaner'); ?>
                                     </label>
@@ -887,11 +914,11 @@ class LLM_Trace_Cleaner_Admin {
                                                name="llm_trace_cleaner_telemetry_opt_in"
                                                id="llm_trace_cleaner_telemetry_opt_in"
                                                value="1"
-                                               <?php checked(get_option('llm_trace_cleaner_telemetry_opt_in', false), true); ?>>
-                                        <?php echo esc_html__('Ayuda a mejorar el plugin enviando métricas 100% anónimas (totales y tipos de rastros).', 'llm-trace-cleaner'); ?>
+                                               <?php checked(get_option('llm_trace_cleaner_telemetry_opt_in', true), true); ?>>
+                                        <?php echo esc_html__('Ayuda a mejorar el plugin enviando métricas 100% anónimas (totales y tipos de rastros) para realizar estudios e investigaciones sobre LLMs y buscadores.', 'llm-trace-cleaner'); ?>
                                     </label>
                                     <p class="description">
-                                        <?php echo esc_html__('No se envían URLs, títulos, IDs de post ni ningún dato personal o sensible.', 'llm-trace-cleaner'); ?>
+                                        <?php echo esc_html__('No se envían URLs, títulos, IDs de post ni ningún dato personal o sensible. Agradecemos tu colaboración en estos estudios e investigaciones.', 'llm-trace-cleaner'); ?>
                                     </p>
                                 </td>
                             </tr>
