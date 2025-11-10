@@ -303,6 +303,13 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.2.0
+- **Preservación mejorada de bloques de Gutenberg**: Sistema mejorado para preservar bloques completos de Gutenberg (comentarios + contenido) sin procesarlos
+- **Placeholders de texto**: Uso de placeholders de texto en lugar de comentarios HTML para evitar que DOMDocument los elimine
+- **Captura de bloques completos**: El sistema ahora captura bloques completos desde el comentario de apertura hasta el de cierre, preservando todo el contenido
+- **Verificación de coincidencia**: Verificación automática de que los comentarios de apertura y cierre correspondan al mismo bloque antes de preservarlo
+- **Restauración mejorada**: Sistema mejorado de restauración que maneja placeholders escapados como entidades HTML
+
 ### 1.1.9
 - **Preservación de bloques de Gutenberg**: Solucionado el problema donde los bloques de Gutenberg (especialmente RankMath FAQ) se eliminaban o corrompían durante la limpieza
 - **Extracción de comentarios de bloques**: El sistema ahora extrae y preserva los comentarios HTML de bloques de Gutenberg (`<!-- wp:namespace/block-name -->`) antes de procesar el HTML

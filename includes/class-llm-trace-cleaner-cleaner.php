@@ -107,32 +107,69 @@ class LLM_Trace_Cleaner_Cleaner {
     }
     
     /**
-     * Extraer y preservar comentarios de bloques de Gutenberg
+     * Extraer y preservar bloques completos de Gutenberg (comentarios + contenido)
      * Los bloques de Gutenberg usan comentarios HTML como: <!-- wp:namespace/block-name {...} -->
-     * DOMDocument puede eliminar o corromper estos comentarios, por lo que los preservamos
+     * DOMDocument puede eliminar o corromper estos comentarios, por lo que preservamos todo el bloque
      * 
      * @param string $html Contenido HTML
-     * @return array Array con 'html' (sin comentarios), 'blocks' (comentarios preservados) y 'placeholders'
+     * @return array Array con 'html' (sin bloques), 'blocks' (bloques preservados) y 'placeholders'
      */
     private function extract_gutenberg_blocks($html) {
         $blocks = array();
         $placeholders = array();
         $counter = 0;
         
-        // Patrón para comentarios de bloques de Gutenberg
-        // Formato: <!-- wp:namespace/block-name {...} --> o <!-- wp:namespace/block-name -->
-        // También captura comentarios de cierre: <!-- /wp:namespace/block-name -->
-        // Captura cualquier comentario que empiece con wp: o /wp:
-        $pattern = '/<!--\s*(?:wp:|wp:\/|\/wp:)[^>]*-->/';
+        // Patrón mejorado para capturar bloques completos de Gutenberg
+        // Formato: <!-- wp:namespace/block-name {...} --> ... contenido ... <!-- /wp:namespace/block-name -->
+        // Usamos un enfoque más robusto que maneja bloques anidados y contenido con comentarios HTML
+        $pattern = '/<!--\s*(wp:[^\s]+(?:\s+[^>]+)?)\s-->(.*?)<!--\s*(\/wp:[^\s]+)\s-->/s';
         
-        $html = preg_replace_callback($pattern, function($matches) use (&$blocks, &$placeholders, &$counter) {
-            $full_match = $matches[0];
-            $placeholder = '<!--LLM_TRACE_CLEANER_BLOCK_' . $counter . '-->';
-            $blocks[] = $full_match; // Guardar el comentario completo
-            $placeholders[] = $placeholder;
-            $counter++;
-            return $placeholder;
-        }, $html);
+        // Procesar múltiples veces para manejar bloques anidados
+        $max_iterations = 10; // Límite de seguridad
+        $iteration = 0;
+        
+        while ($iteration < $max_iterations) {
+            $found = false;
+            $html = preg_replace_callback($pattern, function($matches) use (&$blocks, &$placeholders, &$counter, &$found) {
+                // Verificar que el comentario de cierre corresponda al de apertura
+                $opening_block = trim($matches[1]);
+                $closing_block = trim($matches[3]);
+                $content = $matches[2];
+                
+                // Extraer el nombre del bloque (después de wp:)
+                preg_match('/wp:([^\s]+)/', $opening_block, $opening_match);
+                preg_match('/\/wp:([^\s]+)/', $closing_block, $closing_match);
+                
+                // Solo preservar si los nombres coinciden
+                if (isset($opening_match[1]) && isset($closing_match[1]) && $opening_match[1] === $closing_match[1]) {
+                    // Verificar que el contenido no contenga placeholders ya procesados
+                    // (para evitar procesar bloques anidados dos veces)
+                    if (strpos($content, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_') === false) {
+                        // Guardar el bloque completo: comentario de apertura + contenido + comentario de cierre
+                        $full_block = $matches[0];
+                        
+                        // Usar placeholder de texto (no comentario HTML) para que DOMDocument no lo elimine
+                        $placeholder = '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_' . $counter . ']]';
+                        
+                        $blocks[] = $full_block;
+                        $placeholders[] = $placeholder;
+                        $counter++;
+                        $found = true;
+                        return $placeholder;
+                    }
+                }
+                
+                // Si no coinciden o ya tiene placeholder, mantener el original
+                return $matches[0];
+            }, $html, -1, $count);
+            
+            // Si no se encontraron más bloques, salir del bucle
+            if ($count === 0 || !$found) {
+                break;
+            }
+            
+            $iteration++;
+        }
         
         return array(
             'html' => $html,
@@ -142,19 +179,29 @@ class LLM_Trace_Cleaner_Cleaner {
     }
     
     /**
-     * Restaurar comentarios de bloques de Gutenberg después de la limpieza
+     * Restaurar bloques completos de Gutenberg después de la limpieza
      * 
      * @param string $html HTML limpio
-     * @param array $blocks Array de comentarios preservados
+     * @param array $blocks Array de bloques preservados
      * @param array $placeholders Array de placeholders
-     * @return string HTML con comentarios restaurados
+     * @return string HTML con bloques restaurados
      */
     private function restore_gutenberg_blocks($html, $blocks, $placeholders) {
-        // Restaurar los comentarios en el orden inverso para evitar conflictos
+        if (empty($blocks) || empty($placeholders)) {
+            return $html;
+        }
+        
+        // Restaurar los bloques en el orden inverso para evitar conflictos
         // si hay placeholders que contienen otros placeholders
         for ($i = count($placeholders) - 1; $i >= 0; $i--) {
             if (isset($placeholders[$i]) && isset($blocks[$i])) {
-                $html = str_replace($placeholders[$i], $blocks[$i], $html);
+                // Buscar el placeholder (puede estar escapado como entidad HTML)
+                $placeholder = $placeholders[$i];
+                $placeholder_escaped = htmlspecialchars($placeholder, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                
+                // Intentar reemplazar tanto el placeholder original como el escapado
+                $html = str_replace($placeholder_escaped, $blocks[$i], $html);
+                $html = str_replace($placeholder, $blocks[$i], $html);
             }
         }
         return $html;
@@ -310,11 +357,16 @@ class LLM_Trace_Cleaner_Cleaner {
             $this->clean_element($element);
         }
         
-        // Extraer el contenido del wrapper
-        $cleaned_html = '';
-        foreach ($wrapper_element->childNodes as $child) {
-            $cleaned_html .= $dom->saveHTML($child);
-        }
+        // Extraer el contenido del wrapper preservando placeholders de bloques de Gutenberg
+        // Usamos saveHTML() y luego decodificamos para preservar placeholders de texto
+        $cleaned_html = $dom->saveHTML($wrapper_element);
+        
+        // Remover el wrapper div que añadimos
+        $cleaned_html = preg_replace('/^<div[^>]*id="llm-trace-cleaner-wrapper"[^>]*>/', '', $cleaned_html);
+        $cleaned_html = preg_replace('/<\/div>$/', '', $cleaned_html);
+        
+        // Decodificar entidades HTML para preservar placeholders de texto
+        $cleaned_html = html_entity_decode($cleaned_html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         
         // Eliminar caracteres Unicode invisibles y registrar estadísticas
         $cleaned_html = $this->remove_invisible_unicode($cleaned_html);
