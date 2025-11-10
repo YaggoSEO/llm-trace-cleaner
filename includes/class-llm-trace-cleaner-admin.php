@@ -39,6 +39,7 @@ class LLM_Trace_Cleaner_Admin {
         add_action('wp_ajax_llm_trace_cleaner_get_total', array($this, 'ajax_get_total_posts'));
         add_action('wp_ajax_llm_trace_cleaner_process_batch', array($this, 'ajax_process_batch'));
         add_action('wp_ajax_llm_trace_cleaner_get_progress', array($this, 'ajax_get_progress'));
+        add_action('wp_ajax_llm_trace_cleaner_log_error', array($this, 'ajax_log_error'));
     }
     
     /**
@@ -210,10 +211,14 @@ class LLM_Trace_Cleaner_Admin {
             $offset = isset($_POST['offset']) ? absint($_POST['offset']) : 0;
             $batch_size = get_option('llm_trace_cleaner_batch_size', 10); // Obtener tamaño del lote desde configuración
             
-            $this->log_debug('Iniciando lote de procesamiento', array(
+            $this->log_debug('Lote iniciado', array(
                 'process_id' => $process_id,
                 'offset' => $offset,
-                'batch_size' => $batch_size
+                'batch_size' => $batch_size,
+                'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB',
+                'memory_peak' => round(memory_get_peak_usage(true) / 1024 / 1024, 2) . ' MB',
+                'time_limit' => ini_get('max_execution_time'),
+                'memory_limit' => ini_get('memory_limit')
             ));
             
             if (empty($process_id)) {
@@ -253,6 +258,12 @@ class LLM_Trace_Cleaner_Admin {
             ));
             
             $posts = $query->posts;
+            
+            $this->log_debug('Posts obtenidos', array(
+                'count' => count($posts),
+                'post_ids' => $posts,
+                'offset' => $offset
+            ));
             
             $batch_modified = 0;
             $batch_stats = array();
@@ -325,6 +336,17 @@ class LLM_Trace_Cleaner_Admin {
             
             // Extender el transient a 2 horas para procesos largos
             set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 7200);
+            
+            $this->log_debug('Lote completado', array(
+                'processed' => count($posts),
+                'modified' => $batch_modified,
+                'total_processed' => $process_state['processed'],
+                'total_remaining' => $process_state['total'] - $process_state['processed'],
+                'progress_percent' => round(($process_state['processed'] / $process_state['total']) * 100, 2) . '%',
+                'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB',
+                'memory_peak' => round(memory_get_peak_usage(true) / 1024 / 1024, 2) . ' MB',
+                'is_complete' => $process_state['processed'] >= $process_state['total']
+            ));
             
             // Si el proceso está completo, limpiar toda la caché y enviar telemetría
             if ($process_state['processed'] >= $process_state['total']) {
@@ -702,6 +724,26 @@ class LLM_Trace_Cleaner_Admin {
             </div>
         </div>
         <?php
+    }
+    
+    /**
+     * AJAX: Registrar error desde el cliente
+     */
+    public function ajax_log_error() {
+        check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
+        }
+        
+        $error_data = isset($_POST['error']) ? sanitize_text_field($_POST['error']) : '';
+        $context = isset($_POST['context']) ? sanitize_text_field($_POST['context']) : 'JavaScript AJAX';
+        
+        if (!empty($error_data)) {
+            $this->log_error('Error AJAX desde cliente: ' . $error_data, $context);
+        }
+        
+        wp_send_json_success();
     }
     
     /**
@@ -1261,12 +1303,50 @@ class LLM_Trace_Cleaner_Admin {
                     },
                     error: function(xhr, status, error) {
                         if (!shouldStop) {
+                            // Recopilar información del error
+                            var errorInfo = {
+                                status: status,
+                                error: error,
+                                readyState: xhr.readyState,
+                                statusText: xhr.statusText,
+                                statusCode: xhr.status,
+                                responseText: xhr.responseText ? xhr.responseText.substring(0, 500) : 'Sin respuesta',
+                                offset: offset,
+                                processId: processId
+                            };
+                            
+                            console.error('Error AJAX en proceso de limpieza:', errorInfo);
+                            
+                            // Enviar error al servidor para logging
+                            $.ajax({
+                                url: ajaxUrl,
+                                type: 'POST',
+                                timeout: 5000,
+                                data: {
+                                    action: 'llm_trace_cleaner_log_error',
+                                    nonce: ajaxNonce,
+                                    error: JSON.stringify(errorInfo),
+                                    context: 'processNextBatch - offset: ' + offset
+                                }
+                            }).fail(function() {
+                                console.error('No se pudo registrar el error en el servidor');
+                            });
+                            
                             // Si es timeout, esperar más tiempo antes de reintentar
                             var waitTime = (status === 'timeout') ? 5000 : 2000;
+                            var errorMessage = 'Error: ' + status;
+                            if (xhr.status) {
+                                errorMessage += ' (HTTP ' + xhr.status + ')';
+                            }
+                            if (error) {
+                                errorMessage += ' - ' + error;
+                            }
+                            
                             $('#llm-trace-cleaner-status-text').text(
-                                '<?php echo esc_js(__('Error de conexión. Reintentando en', 'llm-trace-cleaner')); ?> ' + 
+                                errorMessage + ' - <?php echo esc_js(__('Reintentando en', 'llm-trace-cleaner')); ?> ' + 
                                 (waitTime / 1000) + ' <?php echo esc_js(__('segundos...', 'llm-trace-cleaner')); ?>'
                             );
+                            
                             setTimeout(processNextBatch, waitTime);
                         } else {
                             resetUI();
