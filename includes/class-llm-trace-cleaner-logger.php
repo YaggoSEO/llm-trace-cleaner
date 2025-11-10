@@ -50,8 +50,21 @@ class LLM_Trace_Cleaner_Logger {
         // Si las stats están vacías pero se fuerza el log, intentar detectar qué atributos se eliminaron
         if (empty($stats) && $force_log) {
             $detected_attrs = $this->detect_removed_attributes($original_content, $cleaned_content);
-            if (!empty($detected_attrs)) {
-                $details = $cleaner->format_stats($detected_attrs);
+            $detected_unicode = $this->detect_invisible_unicode_removed($original_content, $cleaned_content);
+
+            // Combinar ambos conjuntos
+            $combined = array();
+            foreach (array($detected_attrs, $detected_unicode) as $arr) {
+                foreach ($arr as $k => $v) {
+                    if (!isset($combined[$k])) {
+                        $combined[$k] = 0;
+                    }
+                    $combined[$k] += (int) $v;
+                }
+            }
+
+            if (!empty($combined)) {
+                $details = $cleaner->format_stats($combined);
             } else {
                 $details = __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
             }
@@ -318,6 +331,40 @@ class LLM_Trace_Cleaner_Logger {
             }
         }
         
+        return $detected;
+    }
+
+    /**
+     * Detectar caracteres Unicode invisibles eliminados.
+     *
+     * @param string $original_content
+     * @param string $cleaned_content
+     * @return array
+     */
+    private function detect_invisible_unicode_removed($original_content, $cleaned_content) {
+        if (empty($original_content) || empty($cleaned_content)) {
+            return array();
+        }
+        $detected = array();
+        $cleaner = new LLM_Trace_Cleaner_Cleaner();
+        $map = method_exists($cleaner, 'get_invisible_unicode_map') ? $cleaner->get_invisible_unicode_map() : array();
+        if (empty($map)) {
+            return array();
+        }
+        foreach ($map as $label => $pattern) {
+            // contar en original
+            preg_match_all($pattern, $original_content, $m1);
+            $c1 = isset($m1[0]) ? count($m1[0]) : 0;
+            if ($c1 <= 0) {
+                continue;
+            }
+            // contar en limpio
+            preg_match_all($pattern, $cleaned_content, $m2);
+            $c2 = isset($m2[0]) ? count($m2[0]) : 0;
+            if ($c1 > $c2) {
+                $detected['unicode: ' . $label] = $c1 - $c2;
+            }
+        }
         return $detected;
     }
 }

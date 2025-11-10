@@ -69,6 +69,23 @@ El plugin elimina los siguientes atributos cuando aparecen en el HTML:
 - `data-ui-state`
 - Cualquier atributo `id` cuyo valor empiece por `model-response-message-contentr_`
 
+### Caracteres Unicode invisibles eliminados
+
+El plugin también elimina caracteres invisibles que suelen usarse para marcas, manipulación del renderizado o confusión visual. Algunos ejemplos:
+
+- Zero Width Space (U+200B), ZWNJ (U+200C), ZWJ (U+200D)
+- Zero Width No-Break Space / BOM (U+FEFF)
+- Word Joiner (U+2060), Invisible Separator (U+2063), Invisible Plus (U+2064), Invisible Times (U+2062)
+- Soft Hyphen (U+00AD)
+- Marcas de direccionalidad y control bidi: LRM (U+200E), RLM (U+200F), LRE/RLE/PDF/LRO/RLO (U+202A–U+202E), aislantes (U+2066–U+2069)
+- Mongolian Vowel Separator (U+180E)
+- Tag Characters (U+E0000–U+E007F)
+- Invisible Ideographic Space (U+3000)
+- Object Replacement Character (U+FFFC)
+- Variation Selectors (U+FE00–U+FE0F)
+
+Estos caracteres se registran en el log con el prefijo “unicode: ...” para que puedas ver exactamente cuál fue eliminado.
+
 ## 📦 Requisitos
 
 - **WordPress**: 5.0 o superior
@@ -283,6 +300,11 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.1.2
+- Limpieza de caracteres Unicode invisibles (Zero Width, control bidi, BOM, Soft Hyphen, Variation Selectors, Tag Characters, etc.)
+- Estadísticas por tipo de Unicode en el log (prefijo “unicode: ...”) incluso cuando no hay atributos HTML
+- API de filtro `llm_trace_cleaner_unicode_map` para personalizar qué caracteres eliminar
 
 ### 1.1.1
 - Ampliación de la lista de atributos eliminados (soporte para `data-offset-key`, `data-message-id`, `data-sender`/`data-role`, `data-token-index`, `data-model`, `data-render-timestamp`, `data-update-timestamp`, `data-confidence`, `data-temperature`, `data-seed`, `data-step`, `data-lang`, `data-format`, `data-annotation`, `data-reference`, `data-version`, `data-error`, `data-stream-id`, `data-chunk`, `data-context-id`, `data-user-id`, `data-ui-state`)
