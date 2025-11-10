@@ -80,16 +80,84 @@ class LLM_Trace_Cleaner_Cleaner {
         // Esto corrige problemas donde el HTML aparece como u003ccodeu003e en lugar de <code>
         $html = $this->decode_unicode_sequences($html);
         
+        // Extraer y preservar comentarios de bloques de Gutenberg
+        // Esto evita que se eliminen o corrompan los bloques (ej: RankMath FAQ)
+        $gutenberg_data = $this->extract_gutenberg_blocks($html);
+        $html = $gutenberg_data['html'];
+        
         // Resetear estadísticas
         $this->last_stats = array();
         
         // Usar DOMDocument para un parsing robusto
         if (class_exists('DOMDocument')) {
-            return $this->clean_with_dom($html);
+            $cleaned_html = $this->clean_with_dom($html);
         } else {
             // Fallback a expresiones regulares si DOMDocument no está disponible
-            return $this->clean_with_regex($html);
+            $cleaned_html = $this->clean_with_regex($html);
         }
+        
+        // Restaurar comentarios de bloques de Gutenberg después de la limpieza
+        $cleaned_html = $this->restore_gutenberg_blocks(
+            $cleaned_html, 
+            $gutenberg_data['blocks'], 
+            $gutenberg_data['placeholders']
+        );
+        
+        return $cleaned_html;
+    }
+    
+    /**
+     * Extraer y preservar comentarios de bloques de Gutenberg
+     * Los bloques de Gutenberg usan comentarios HTML como: <!-- wp:namespace/block-name {...} -->
+     * DOMDocument puede eliminar o corromper estos comentarios, por lo que los preservamos
+     * 
+     * @param string $html Contenido HTML
+     * @return array Array con 'html' (sin comentarios), 'blocks' (comentarios preservados) y 'placeholders'
+     */
+    private function extract_gutenberg_blocks($html) {
+        $blocks = array();
+        $placeholders = array();
+        $counter = 0;
+        
+        // Patrón para comentarios de bloques de Gutenberg
+        // Formato: <!-- wp:namespace/block-name {...} --> o <!-- wp:namespace/block-name -->
+        // También captura comentarios de cierre: <!-- /wp:namespace/block-name -->
+        // Captura cualquier comentario que empiece con wp: o /wp:
+        $pattern = '/<!--\s*(?:wp:|wp:\/|\/wp:)[^>]*-->/';
+        
+        $html = preg_replace_callback($pattern, function($matches) use (&$blocks, &$placeholders, &$counter) {
+            $full_match = $matches[0];
+            $placeholder = '<!--LLM_TRACE_CLEANER_BLOCK_' . $counter . '-->';
+            $blocks[] = $full_match; // Guardar el comentario completo
+            $placeholders[] = $placeholder;
+            $counter++;
+            return $placeholder;
+        }, $html);
+        
+        return array(
+            'html' => $html,
+            'blocks' => $blocks,
+            'placeholders' => $placeholders
+        );
+    }
+    
+    /**
+     * Restaurar comentarios de bloques de Gutenberg después de la limpieza
+     * 
+     * @param string $html HTML limpio
+     * @param array $blocks Array de comentarios preservados
+     * @param array $placeholders Array de placeholders
+     * @return string HTML con comentarios restaurados
+     */
+    private function restore_gutenberg_blocks($html, $blocks, $placeholders) {
+        // Restaurar los comentarios en el orden inverso para evitar conflictos
+        // si hay placeholders que contienen otros placeholders
+        for ($i = count($placeholders) - 1; $i >= 0; $i--) {
+            if (isset($placeholders[$i]) && isset($blocks[$i])) {
+                $html = str_replace($placeholders[$i], $blocks[$i], $html);
+            }
+        }
+        return $html;
     }
     
     /**

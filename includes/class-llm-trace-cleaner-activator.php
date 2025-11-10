@@ -18,7 +18,7 @@ class LLM_Trace_Cleaner_Activator {
     public static function activate() {
         // Verificar que las constantes estén definidas
         if (!defined('LLM_TRACE_CLEANER_VERSION')) {
-            define('LLM_TRACE_CLEANER_VERSION', '1.1.8');
+            define('LLM_TRACE_CLEANER_VERSION', '1.1.9');
         }
         
         // Crear tabla de logs

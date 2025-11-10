@@ -303,6 +303,12 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.1.9
+- **Preservación de bloques de Gutenberg**: Solucionado el problema donde los bloques de Gutenberg (especialmente RankMath FAQ) se eliminaban o corrompían durante la limpieza
+- **Extracción de comentarios de bloques**: El sistema ahora extrae y preserva los comentarios HTML de bloques de Gutenberg (`<!-- wp:namespace/block-name -->`) antes de procesar el HTML
+- **Restauración automática**: Los comentarios de bloques se restauran automáticamente después de la limpieza, manteniendo la estructura completa del bloque
+- **Compatibilidad con Gutenberg**: El plugin ahora es completamente compatible con todos los bloques de Gutenberg, incluyendo bloques personalizados de plugins como RankMath
+
 ### 1.1.8
 - **Mejora en decodificación Unicode**: Sistema mejorado para manejar múltiples formatos de secuencias Unicode (`u003c`, `\u003c`, `&#x003c;`, etc.)
 - **Verificación de caracteres invisibles**: El sistema ahora verifica que los caracteres Unicode decodificados no sean caracteres invisibles que estamos eliminando
