@@ -119,9 +119,8 @@ class LLM_Trace_Cleaner_Cleaner {
         $placeholders = array();
         $counter = 0;
         
-        // Patrón mejorado para capturar bloques completos de Gutenberg
+        // Primero, intentar capturar bloques con comentarios de Gutenberg
         // Formato: <!-- wp:namespace/block-name {...} --> ... contenido ... <!-- /wp:namespace/block-name -->
-        // Usamos un enfoque más robusto que maneja bloques anidados y contenido con comentarios HTML
         $pattern = '/<!--\s*(wp:[^\s]+(?:\s+[^>]+)?)\s-->(.*?)<!--\s*(\/wp:[^\s]+)\s-->/s';
         
         // Procesar múltiples veces para manejar bloques anidados
@@ -171,11 +170,149 @@ class LLM_Trace_Cleaner_Cleaner {
             $iteration++;
         }
         
+        // Si no hay comentarios de Gutenberg, detectar bloques por clases CSS específicas
+        // RankMath FAQ Block - formato wp-block-rank-math-faq-block
+        $html = $this->extract_blocks_by_class($html, 'wp-block-rank-math-faq-block', $blocks, $placeholders, $counter);
+        
+        // RankMath FAQ Block - formato renderizado rank-math-block
+        $html = $this->extract_blocks_by_class($html, 'rank-math-block', $blocks, $placeholders, $counter);
+        
         return array(
             'html' => $html,
             'blocks' => $blocks,
             'placeholders' => $placeholders
         );
+    }
+    
+    /**
+     * Extraer bloques completos por clase CSS específica
+     * Útil cuando no hay comentarios de Gutenberg disponibles
+     * 
+     * @param string $html HTML a procesar
+     * @param string $class_name Nombre de la clase CSS a buscar
+     * @param array &$blocks Array de bloques preservados (por referencia)
+     * @param array &$placeholders Array de placeholders (por referencia)
+     * @param int &$counter Contador de placeholders (por referencia)
+     * @return string HTML con bloques reemplazados por placeholders
+     */
+    private function extract_blocks_by_class($html, $class_name, &$blocks, &$placeholders, &$counter) {
+        // Buscar todas las ocurrencias de divs con la clase específica
+        $pattern = '/<div[^>]*class="[^"]*' . preg_quote($class_name, '/') . '[^"]*"[^>]*>/i';
+        
+        $offset = 0;
+        while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+            $match_pos = $matches[0][1];
+            
+            // Verificar que no esté dentro de un placeholder ya procesado
+            $before_match = substr($html, 0, $match_pos);
+            if (strpos($before_match, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_') !== false) {
+                // Verificar si el placeholder más cercano está después de este match
+                $last_placeholder_pos = strrpos($before_match, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_');
+                if ($last_placeholder_pos !== false) {
+                    $placeholder_end = strpos($html, ']]', $last_placeholder_pos);
+                    if ($placeholder_end !== false && $placeholder_end > $match_pos) {
+                        // Este match está dentro de un placeholder, saltarlo
+                        $offset = $match_pos + strlen($matches[0][0]);
+                        continue;
+                    }
+                }
+            }
+            
+            // Extraer el bloque completo desde esta posición
+            $full_block = $this->extract_complete_div_block($html, $match_pos);
+            
+            if ($full_block && strpos($full_block, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_') === false) {
+                $placeholder = '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_' . $counter . ']]';
+                
+                $blocks[] = $full_block;
+                $placeholders[] = $placeholder;
+                
+                // Reemplazar el bloque con el placeholder
+                $html = substr_replace($html, $placeholder, $match_pos, strlen($full_block));
+                
+                $counter++;
+                $offset = $match_pos + strlen($placeholder);
+            } else {
+                $offset = $match_pos + strlen($matches[0][0]);
+            }
+        }
+        
+        return $html;
+    }
+    
+    /**
+     * Extraer un bloque div completo contando las etiquetas de apertura y cierre
+     * 
+     * @param string $html HTML completo
+     * @param int $start_pos Posición inicial del div de apertura
+     * @return string|false Bloque completo o false si no se encuentra el cierre
+     */
+    private function extract_complete_div_block($html, $start_pos) {
+        $pos = $start_pos;
+        $depth = 0;
+        $start = $start_pos;
+        
+        // Buscar la etiqueta de apertura completa
+        $open_tag_end = strpos($html, '>', $pos);
+        if ($open_tag_end === false) {
+            return false;
+        }
+        
+        // Verificar si es auto-cerrado
+        $open_tag = substr($html, $pos, $open_tag_end - $pos + 1);
+        if (preg_match('/\/\s*>$/', $open_tag)) {
+            // Es auto-cerrado, devolver solo esta etiqueta
+            return $open_tag;
+        }
+        
+        $depth = 1;
+        $pos = $open_tag_end + 1;
+        
+        // Buscar todas las etiquetas div hasta encontrar el cierre correspondiente
+        while ($depth > 0 && $pos < strlen($html)) {
+            // Buscar siguiente etiqueta div (apertura o cierre)
+            $next_open = strpos($html, '<div', $pos);
+            $next_close = strpos($html, '</div>', $pos);
+            
+            // Determinar cuál viene primero
+            if ($next_open === false && $next_close === false) {
+                // No hay más etiquetas, no se encontró el cierre
+                return false;
+            }
+            
+            if ($next_open === false) {
+                // Solo hay cierre
+                $depth--;
+                if ($depth === 0) {
+                    // Encontramos el cierre correspondiente
+                    $end_pos = $next_close + 6; // 6 = longitud de '</div>'
+                    return substr($html, $start, $end_pos - $start);
+                }
+                $pos = $next_close + 6;
+            } elseif ($next_close === false) {
+                // Solo hay apertura
+                $depth++;
+                $pos = strpos($html, '>', $next_open) + 1;
+            } else {
+                // Hay ambas, verificar cuál viene primero
+                if ($next_open < $next_close) {
+                    // Apertura viene primero
+                    $depth++;
+                    $pos = strpos($html, '>', $next_open) + 1;
+                } else {
+                    // Cierre viene primero
+                    $depth--;
+                    if ($depth === 0) {
+                        // Encontramos el cierre correspondiente
+                        $end_pos = $next_close + 6;
+                        return substr($html, $start, $end_pos - $start);
+                    }
+                    $pos = $next_close + 6;
+                }
+            }
+        }
+        
+        return false;
     }
     
     /**

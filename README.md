@@ -303,6 +303,12 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.2.1
+- **Detección mejorada de bloques de Gutenberg**: Sistema mejorado para detectar bloques de Gutenberg por clases CSS cuando no hay comentarios de Gutenberg disponibles
+- **Preservación de bloques RankMath FAQ**: El sistema ahora detecta y preserva bloques de RankMath FAQ por sus clases CSS específicas (`wp-block-rank-math-faq-block` y `rank-math-block`)
+- **Extracción robusta de bloques div**: Implementado método robusto para extraer bloques div completos contando correctamente las etiquetas de apertura y cierre
+- **Compatibilidad mejorada**: El plugin ahora funciona correctamente con bloques de Gutenberg que no tienen comentarios HTML en el contenido guardado
+
 ### 1.2.0
 - **Preservación mejorada de bloques de Gutenberg**: Sistema mejorado para preservar bloques completos de Gutenberg (comentarios + contenido) sin procesarlos
 - **Placeholders de texto**: Uso de placeholders de texto en lugar de comentarios HTML para evitar que DOMDocument los elimine
