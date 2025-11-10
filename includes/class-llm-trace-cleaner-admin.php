@@ -215,12 +215,19 @@ class LLM_Trace_Cleaner_Admin {
             wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
         }
         
-        // Obtener total de posts y páginas publicados
-        $total_posts = wp_count_posts('post')->publish;
-        $total_pages = wp_count_posts('page')->publish;
-        $total = $total_posts + $total_pages;
+        // Obtener TODOS los IDs de posts y páginas publicados de una vez
+        // Esto evita problemas con offset y filtros de plugins
+        global $wpdb;
+        $post_ids = $wpdb->get_col(
+            "SELECT ID FROM {$wpdb->posts} 
+            WHERE post_type IN ('post', 'page') 
+            AND post_status = 'publish' 
+            ORDER BY ID ASC"
+        );
         
-        // Inicializar el estado del proceso con tiempo extendido
+        $total = count($post_ids);
+        
+        // Inicializar el estado del proceso con todos los IDs
         $process_id = 'llm_trace_clean_' . time();
         set_transient('llm_trace_cleaner_process_' . $process_id, array(
             'total' => $total,
@@ -228,7 +235,14 @@ class LLM_Trace_Cleaner_Admin {
             'modified' => 0,
             'stats' => array(),
             'started' => current_time('mysql'),
+            'post_ids' => $post_ids, // Guardar todos los IDs para procesamiento por lotes
         ), 7200); // 2 horas para procesos largos
+        
+        $this->log_debug('Proceso iniciado', array(
+            'total_posts' => $total,
+            'process_id' => $process_id,
+            'first_10_ids' => array_slice($post_ids, 0, 10) // Solo para logging
+        ));
         
         wp_send_json_success(array(
             'total' => $total,
@@ -293,16 +307,55 @@ class LLM_Trace_Cleaner_Admin {
             $cleaner = new LLM_Trace_Cleaner_Cleaner();
             $logger = new LLM_Trace_Cleaner_Logger();
             
-            // Obtener lote de posts usando WP_Query para mejor control
+            // Obtener los IDs que faltan por procesar usando post__in en lugar de offset
+            // Esto evita problemas cuando hay filtros de plugins que afectan la consulta
+            $all_post_ids = isset($process_state['post_ids']) ? $process_state['post_ids'] : array();
+            $processed_count = $process_state['processed'];
+            $remaining_ids = array_slice($all_post_ids, $processed_count, $batch_size);
+            
+            if (empty($remaining_ids)) {
+                // No hay más posts, marcar como completado
+                $this->log_debug('No hay más posts para procesar', array(
+                    'processed' => $process_state['processed'],
+                    'total' => $process_state['total']
+                ));
+                
+                $process_state['processed'] = $process_state['total'];
+                set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 7200);
+                
+                // Si el proceso está completo, limpiar toda la caché y enviar telemetría
+                if ($process_state['processed'] >= $process_state['total']) {
+                    LLM_Trace_Cleaner_Cache::clear_all_cache();
+                    
+                    $this->log_debug('Proceso completado', array(
+                        'total' => $process_state['total'],
+                        'processed' => $process_state['processed'],
+                        'modified' => $process_state['modified']
+                    ));
+                    
+                    // Telemetría anónima (opt-in, activada por defecto)
+                    if (get_option('llm_trace_cleaner_telemetry_opt_in', true)) {
+                        $this->send_anonymous_telemetry($process_state);
+                    }
+                }
+                
+                wp_send_json_success(array(
+                    'processed' => 0,
+                    'modified' => 0,
+                    'total_processed' => $process_state['processed'],
+                    'total_modified' => $process_state['modified'],
+                    'is_complete' => $process_state['processed'] >= $process_state['total'],
+                ));
+            }
+            
+            // Usar post__in en lugar de offset para evitar problemas con filtros de plugins
             $query = new WP_Query(array(
                 'post_type' => array('post', 'page'),
                 'post_status' => 'publish',
+                'post__in' => $remaining_ids, // Usar IDs específicos en lugar de offset
                 'posts_per_page' => $batch_size,
-                'offset' => $offset,
                 'fields' => 'ids',
-                'orderby' => 'ID',
-                'order' => 'ASC',
-                'no_found_rows' => false,
+                'orderby' => 'post__in', // Mantener el orden de los IDs
                 'update_post_meta_cache' => false,
                 'update_post_term_cache' => false,
             ));
@@ -312,7 +365,9 @@ class LLM_Trace_Cleaner_Admin {
             $this->log_debug('Posts obtenidos', array(
                 'count' => count($posts),
                 'post_ids' => $posts,
-                'offset' => $offset
+                'offset' => $offset,
+                'processed_count' => $processed_count,
+                'remaining_total' => count($all_post_ids) - $processed_count
             ));
             
             $batch_modified = 0;

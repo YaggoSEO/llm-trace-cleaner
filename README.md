@@ -303,6 +303,11 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.1.6
+- **Corrección crítica de procesamiento por lotes**: Solucionado el problema donde el proceso se quedaba atascado en un offset específico (ej: offset 64) y no continuaba procesando posts
+- **Mejora en la consulta de posts**: Ahora se obtienen todos los IDs al inicio del proceso y se procesan usando `post__in` en lugar de `offset`, evitando problemas con filtros de plugins
+- **Mayor confiabilidad**: El sistema ahora procesa exactamente los posts identificados al inicio, sin depender de consultas con offset que pueden fallar
+
 ### 1.1.5
 - **Detección de conflictos de plugins**: Sistema mejorado para identificar qué plugins pueden estar causando que el proceso de limpieza se detenga o sea lento
 - **Medición de tiempos de procesamiento**: Registro detallado del tiempo que tarda cada post en procesarse y actualizarse
