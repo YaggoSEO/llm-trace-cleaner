@@ -288,6 +288,8 @@ set_time_limit(300);
 - Ampliación de la lista de atributos eliminados (soporte para `data-offset-key`, `data-message-id`, `data-sender`/`data-role`, `data-token-index`, `data-model`, `data-render-timestamp`, `data-update-timestamp`, `data-confidence`, `data-temperature`, `data-seed`, `data-step`, `data-lang`, `data-format`, `data-annotation`, `data-reference`, `data-version`, `data-error`, `data-stream-id`, `data-chunk`, `data-context-id`, `data-user-id`, `data-ui-state`)
 - Nueva API de filtro `llm_trace_cleaner_attributes` para extender atributos sin tocar el core
 - El logger usa la misma lista del limpiador para detectar y reportar atributos eliminados con precisión
+- Botones “Seleccionar todos / Deseleccionar” en la lista de Bots/LLMs a detectar
+- Recarga automática de la página al finalizar el procesamiento para mostrar los nuevos logs
 
 ### 1.1.0
 - Sistema de gestión de caché inteligente

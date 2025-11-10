@@ -418,6 +418,18 @@ class LLM_Trace_Cleaner_Admin {
                                         <legend class="screen-reader-text">
                                             <span><?php echo esc_html__('Seleccionar bots', 'llm-trace-cleaner'); ?></span>
                                         </legend>
+                                        <div style="margin-bottom:8px;">
+                                            <button type="button"
+                                                    id="llm-trace-cleaner-select-all-bots"
+                                                    class="button button-secondary">
+                                                <?php echo esc_html__('Seleccionar todos', 'llm-trace-cleaner'); ?>
+                                            </button>
+                                            <button type="button"
+                                                    id="llm-trace-cleaner-unselect-all-bots"
+                                                    class="button" style="margin-left:8px;">
+                                                <?php echo esc_html__('Deseleccionar', 'llm-trace-cleaner'); ?>
+                                            </button>
+                                        </div>
                                         <?php foreach ($default_bots as $bot_key => $bot_label): ?>
                                             <label style="display: block; margin-bottom: 5px;">
                                                 <input type="checkbox" 
@@ -676,6 +688,14 @@ class LLM_Trace_Cleaner_Admin {
                 } else {
                     $('#llm-trace-cleaner-bots-config, #llm-trace-cleaner-custom-bots-config').hide();
                 }
+            });
+
+            // Botones Seleccionar/Deseleccionar todos los bots
+            $('#llm-trace-cleaner-select-all-bots').on('click', function() {
+                $('input[name="llm_trace_cleaner_selected_bots[]"]').prop('checked', true);
+            });
+            $('#llm-trace-cleaner-unselect-all-bots').on('click', function() {
+                $('input[name="llm_trace_cleaner_selected_bots[]"]').prop('checked', false);
             });
             
             var processId = null;
