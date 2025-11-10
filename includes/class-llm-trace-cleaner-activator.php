@@ -16,22 +16,50 @@ class LLM_Trace_Cleaner_Activator {
      * Activar el plugin
      */
     public static function activate() {
+        // Verificar que las constantes estén definidas
+        if (!defined('LLM_TRACE_CLEANER_VERSION')) {
+            define('LLM_TRACE_CLEANER_VERSION', '1.1.3');
+        }
+        
         // Crear tabla de logs
         self::create_log_table();
         
-        // Establecer opciones por defecto
-        add_option('llm_trace_cleaner_auto_clean', false);
-        add_option('llm_trace_cleaner_version', LLM_TRACE_CLEANER_VERSION);
-        add_option('llm_trace_cleaner_disable_cache', false);
-        add_option('llm_trace_cleaner_selected_bots', array());
-        add_option('llm_trace_cleaner_custom_bots', '');
-        add_option('llm_trace_cleaner_telemetry_opt_in', true); // Activado por defecto
-        add_option('llm_trace_cleaner_batch_size', 10); // Tamaño del lote por defecto
-        add_option('llm_trace_cleaner_error_logs', array());
-        add_option('llm_trace_cleaner_debug_logs', array());
+        // Establecer opciones por defecto (solo si no existen)
+        if (get_option('llm_trace_cleaner_auto_clean') === false) {
+            add_option('llm_trace_cleaner_auto_clean', false);
+        }
+        if (get_option('llm_trace_cleaner_version') === false) {
+            add_option('llm_trace_cleaner_version', LLM_TRACE_CLEANER_VERSION);
+        } else {
+            update_option('llm_trace_cleaner_version', LLM_TRACE_CLEANER_VERSION);
+        }
+        if (get_option('llm_trace_cleaner_disable_cache') === false) {
+            add_option('llm_trace_cleaner_disable_cache', false);
+        }
+        if (get_option('llm_trace_cleaner_selected_bots') === false) {
+            add_option('llm_trace_cleaner_selected_bots', array());
+        }
+        if (get_option('llm_trace_cleaner_custom_bots') === false) {
+            add_option('llm_trace_cleaner_custom_bots', '');
+        }
+        if (get_option('llm_trace_cleaner_telemetry_opt_in') === false) {
+            add_option('llm_trace_cleaner_telemetry_opt_in', true); // Activado por defecto
+        }
+        if (get_option('llm_trace_cleaner_batch_size') === false) {
+            add_option('llm_trace_cleaner_batch_size', 10); // Tamaño del lote por defecto
+        }
+        if (get_option('llm_trace_cleaner_error_logs') === false) {
+            add_option('llm_trace_cleaner_error_logs', array());
+        }
+        if (get_option('llm_trace_cleaner_debug_logs') === false) {
+            add_option('llm_trace_cleaner_debug_logs', array());
+        }
         
         // Limpiar cache de rewrite rules
         flush_rewrite_rules();
+        
+        // NO redirigir durante la activación - WordPress maneja esto automáticamente
+        // La redirección manual puede causar problemas durante actualizaciones
     }
     
     /**
@@ -43,9 +71,9 @@ class LLM_Trace_Cleaner_Activator {
     }
     
     /**
-     * Crear tabla de logs en la base de datos
+     * Crear tabla de logs en la base de datos (público para actualizaciones)
      */
-    private static function create_log_table() {
+    public static function create_log_table() {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'llm_trace_cleaner_logs';

@@ -59,12 +59,51 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         // Cargar archivos necesarios
         $this->load_dependencies();
         
-        // Registrar hooks de activación/desactivación
-        register_activation_hook(__FILE__, array('LLM_Trace_Cleaner_Activator', 'activate'));
-        register_deactivation_hook(__FILE__, array('LLM_Trace_Cleaner_Activator', 'deactivate'));
-        
         // Inicializar componentes
         add_action('plugins_loaded', array($this, 'load_components'));
+        
+        // Verificar y ejecutar actualizaciones si es necesario
+        add_action('admin_init', array($this, 'check_version'));
+    }
+    
+    /**
+     * Verificar versión y ejecutar actualizaciones si es necesario
+     */
+    public function check_version() {
+        $installed_version = get_option('llm_trace_cleaner_version', '0.0.0');
+        
+        if (version_compare($installed_version, LLM_TRACE_CLEANER_VERSION, '<')) {
+            // Ejecutar actualización
+            $this->upgrade($installed_version);
+            update_option('llm_trace_cleaner_version', LLM_TRACE_CLEANER_VERSION);
+        }
+    }
+    
+    /**
+     * Ejecutar actualizaciones según la versión anterior
+     */
+    private function upgrade($old_version) {
+        // Añadir nuevas opciones si no existen (para actualizaciones)
+        if (version_compare($old_version, '1.1.2', '<')) {
+            // Opciones añadidas en 1.1.2
+            if (get_option('llm_trace_cleaner_telemetry_opt_in') === false) {
+                add_option('llm_trace_cleaner_telemetry_opt_in', true);
+            }
+            if (get_option('llm_trace_cleaner_batch_size') === false) {
+                add_option('llm_trace_cleaner_batch_size', 10);
+            }
+            if (get_option('llm_trace_cleaner_error_logs') === false) {
+                add_option('llm_trace_cleaner_error_logs', array());
+            }
+            if (get_option('llm_trace_cleaner_debug_logs') === false) {
+                add_option('llm_trace_cleaner_debug_logs', array());
+            }
+        }
+        
+        // Asegurar que la tabla de logs existe (por si acaso)
+        if (class_exists('LLM_Trace_Cleaner_Activator')) {
+            LLM_Trace_Cleaner_Activator::create_log_table();
+        }
     }
     
     /**
@@ -162,6 +201,22 @@ if (!function_exists('llm_trace_cleaner_init')) {
         }
         return LLM_Trace_Cleaner::get_instance();
     }
+}
+
+// Registrar hooks de activación/desactivación (debe estar fuera de la clase)
+if (!function_exists('llm_trace_cleaner_register_hooks')) {
+    function llm_trace_cleaner_register_hooks() {
+        // Cargar el activador primero
+        $activator_file = plugin_dir_path(__FILE__) . 'includes/class-llm-trace-cleaner-activator.php';
+        if (file_exists($activator_file)) {
+            require_once $activator_file;
+        }
+        
+        // Registrar hooks
+        register_activation_hook(__FILE__, array('LLM_Trace_Cleaner_Activator', 'activate'));
+        register_deactivation_hook(__FILE__, array('LLM_Trace_Cleaner_Activator', 'deactivate'));
+    }
+    llm_trace_cleaner_register_hooks();
 }
 
 // Iniciar el plugin solo si no se ha inicializado ya

@@ -309,6 +309,8 @@ set_time_limit(300);
 - **Información de depuración**: Cada lote registra uso de memoria, tiempo restante y progreso porcentual
 - **Mejor manejo de timeouts**: Detección y reintento automático con información detallada del error
 - **Logging de estado del proceso**: Registro del estado completo antes y después de cada lote
+- **Sistema de actualización automática**: Verificación y actualización automática de opciones cuando se actualiza el plugin
+- **Corrección de problemas de actualización**: Solucionado el problema de pantalla en blanco durante las actualizaciones del plugin
 
 ### 1.1.2
 - **Menú principal en la barra de administración**: El plugin ahora aparece como un menú principal en lugar de estar en "Herramientas"
