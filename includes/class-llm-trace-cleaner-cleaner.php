@@ -66,15 +66,33 @@ class LLM_Trace_Cleaner_Cleaner {
     private $last_stats = array();
     
     /**
+     * Añadir propiedades para rastrear ubicaciones
+     */
+    private $change_locations = array();
+    
+    /**
      * Limpiar HTML eliminando atributos de rastreo LLM
      *
      * @param string $html Contenido HTML a limpiar
+     * @param array $options Opciones de limpieza ('clean_attributes', 'clean_unicode', 'track_locations')
      * @return string HTML limpio
      */
-    public function clean_html($html) {
+    public function clean_html($html, $options = array()) {
         if (empty($html)) {
             return $html;
         }
+        
+        // Opciones por defecto
+        $default_options = array(
+            'clean_attributes' => true,
+            'clean_unicode' => true,
+            'track_locations' => true
+        );
+        $options = wp_parse_args($options, $default_options);
+        
+        // Resetear estadísticas y ubicaciones
+        $this->last_stats = array();
+        $this->change_locations = array();
         
         // Primero, decodificar secuencias Unicode como u003c, u003e, etc.
         // Esto corrige problemas donde el HTML aparece como u003ccodeu003e en lugar de <code>
@@ -85,15 +103,25 @@ class LLM_Trace_Cleaner_Cleaner {
         $gutenberg_data = $this->extract_gutenberg_blocks($html);
         $html = $gutenberg_data['html'];
         
-        // Resetear estadísticas
-        $this->last_stats = array();
+        // Guardar HTML original para rastrear ubicaciones
+        $original_html = $html;
         
-        // Usar DOMDocument para un parsing robusto
-        if (class_exists('DOMDocument')) {
-            $cleaned_html = $this->clean_with_dom($html);
+        // Limpiar atributos si está activado
+        if ($options['clean_attributes']) {
+            // Usar DOMDocument para un parsing robusto
+            if (class_exists('DOMDocument')) {
+                $cleaned_html = $this->clean_with_dom($html, $options);
+            } else {
+                // Fallback a expresiones regulares si DOMDocument no está disponible
+                $cleaned_html = $this->clean_with_regex($html, $options);
+            }
         } else {
-            // Fallback a expresiones regulares si DOMDocument no está disponible
-            $cleaned_html = $this->clean_with_regex($html);
+            $cleaned_html = $html;
+        }
+        
+        // Limpiar Unicode si está activado
+        if ($options['clean_unicode']) {
+            $cleaned_html = $this->remove_invisible_unicode($cleaned_html, $options);
         }
         
         // Restaurar comentarios de bloques de Gutenberg después de la limpieza
@@ -457,9 +485,10 @@ class LLM_Trace_Cleaner_Cleaner {
      * Limpiar usando DOMDocument (método preferido)
      *
      * @param string $html Contenido HTML
+     * @param array $options Opciones de limpieza
      * @return string HTML limpio
      */
-    private function clean_with_dom($html) {
+    private function clean_with_dom($html, $options = array()) {
         // Crear contexto para manejar HTML fragmentado
         $dom = new DOMDocument();
         
@@ -491,7 +520,7 @@ class LLM_Trace_Cleaner_Cleaner {
         $elements = $xpath->query('//*');
         
         foreach ($elements as $element) {
-            $this->clean_element($element);
+            $this->clean_element($element, $html, $options);
         }
         
         // Extraer el contenido del wrapper preservando placeholders de bloques de Gutenberg
@@ -505,9 +534,6 @@ class LLM_Trace_Cleaner_Cleaner {
         // Decodificar entidades HTML para preservar placeholders de texto
         $cleaned_html = html_entity_decode($cleaned_html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         
-        // Eliminar caracteres Unicode invisibles y registrar estadísticas
-        $cleaned_html = $this->remove_invisible_unicode($cleaned_html);
-        
         return $cleaned_html;
     }
     
@@ -515,10 +541,18 @@ class LLM_Trace_Cleaner_Cleaner {
      * Limpiar un elemento DOM
      *
      * @param DOMElement $element Elemento a limpiar
+     * @param string $original_html HTML original para rastrear ubicaciones
+     * @param array $options Opciones de limpieza
      */
-    private function clean_element($element) {
+    private function clean_element($element, $original_html = '', $options = array()) {
         if (!$element->hasAttributes()) {
             return;
+        }
+        
+        // Obtener ubicación del elemento si se requiere rastreo
+        $location = null;
+        if (!empty($options['track_locations']) && !empty($original_html)) {
+            $location = $this->get_element_location($element, $original_html);
         }
         
         // Eliminar atributos específicos
@@ -526,6 +560,11 @@ class LLM_Trace_Cleaner_Cleaner {
             if ($element->hasAttribute($attr)) {
                 $element->removeAttribute($attr);
                 $this->increment_stat($attr);
+                
+                // Registrar ubicación si se requiere
+                if ($location) {
+                    $this->record_change_location('attribute', $attr, $location);
+                }
             }
         }
         
@@ -535,6 +574,11 @@ class LLM_Trace_Cleaner_Cleaner {
             if (preg_match($this->id_pattern, $id_value)) {
                 $element->removeAttribute('id');
                 $this->increment_stat('id(model-response-message-contentr_*)');
+                
+                // Registrar ubicación si se requiere
+                if ($location) {
+                    $this->record_change_location('attribute', 'id(model-response-message-contentr_*)', $location);
+                }
             }
         }
     }
@@ -543,9 +587,10 @@ class LLM_Trace_Cleaner_Cleaner {
      * Limpiar usando expresiones regulares (fallback)
      *
      * @param string $html Contenido HTML
+     * @param array $options Opciones de limpieza
      * @return string HTML limpio
      */
-    private function clean_with_regex($html) {
+    private function clean_with_regex($html, $options = array()) {
         $cleaned = $html;
         
         // Eliminar cada atributo usando regex
@@ -555,6 +600,15 @@ class LLM_Trace_Cleaner_Cleaner {
             $cleaned = preg_replace($pattern, '', $cleaned, -1, $count);
             if ($count > 0) {
                 $this->increment_stat($attr, $count);
+                
+                // Registrar ubicación genérica para regex (no podemos determinar ubicación exacta)
+                if (!empty($options['track_locations'])) {
+                    $this->record_change_location('attribute', $attr, array(
+                        'block_type' => 'HTML Element',
+                        'block_name' => null,
+                        'class' => null
+                    ));
+                }
             }
         }
         
@@ -564,10 +618,16 @@ class LLM_Trace_Cleaner_Cleaner {
         $cleaned = preg_replace($pattern, '', $cleaned, -1, $count);
         if ($count > 0) {
             $this->increment_stat('id(model-response-message-contentr_*)', $count);
+            
+            // Registrar ubicación genérica
+            if (!empty($options['track_locations'])) {
+                $this->record_change_location('attribute', 'id(model-response-message-contentr_*)', array(
+                    'block_type' => 'HTML Element',
+                    'block_name' => null,
+                    'class' => null
+                ));
+            }
         }
-        
-        // Eliminar caracteres Unicode invisibles y registrar estadísticas
-        $cleaned = $this->remove_invisible_unicode($cleaned);
         
         return $cleaned;
     }
@@ -605,18 +665,29 @@ class LLM_Trace_Cleaner_Cleaner {
      * Eliminar caracteres Unicode invisibles y acumular estadísticas.
      *
      * @param string $html
+     * @param array $options Opciones de limpieza
      * @return string
      */
-    private function remove_invisible_unicode($html) {
+    private function remove_invisible_unicode($html, $options = array()) {
         $map = apply_filters('llm_trace_cleaner_unicode_map', $this->invisible_unicode_map);
         if (empty($map) || !is_array($map)) {
             return $html;
         }
+        
         foreach ($map as $label => $pattern) {
             $count = 0;
             $html = preg_replace($pattern, '', $html, -1, $count);
             if ($count > 0) {
                 $this->increment_stat('unicode: ' . $label, $count);
+                
+                // Registrar ubicación genérica para Unicode (no podemos determinar ubicación exacta sin DOM)
+                if (!empty($options['track_locations'])) {
+                    $this->record_change_location('unicode', $label, array(
+                        'block_type' => 'Text Content',
+                        'block_name' => null,
+                        'class' => null
+                    ));
+                }
             }
         }
         
@@ -699,6 +770,136 @@ class LLM_Trace_Cleaner_Cleaner {
         }
         
         return implode('; ', $parts);
+    }
+
+    /**
+     * Nuevo método para análisis previo
+     *
+     * @param string $html Contenido HTML a analizar
+     * @return array Array con 'attributes_found', 'unicode_found', 'total_attributes', 'total_unicode'
+     */
+    public function analyze_content($html) {
+        $analysis = array(
+            'attributes_found' => array(),
+            'unicode_found' => array(),
+            'total_attributes' => 0,
+            'total_unicode' => 0
+        );
+        
+        // Analizar atributos sin limpiar
+        $attributes_to_check = $this->get_attributes_to_remove();
+        foreach ($attributes_to_check as $attr) {
+            $pattern = '/\s+' . preg_quote($attr, '/') . '(?:\s*=\s*["\'][^"\']*["\'])?/i';
+            preg_match_all($pattern, $html, $matches);
+            $count = count($matches[0]);
+            if ($count > 0) {
+                $analysis['attributes_found'][$attr] = $count;
+                $analysis['total_attributes'] += $count;
+            }
+        }
+        
+        // Analizar Unicode
+        $unicode_map = $this->get_invisible_unicode_map();
+        foreach ($unicode_map as $label => $pattern) {
+            preg_match_all($pattern, $html, $matches);
+            $count = count($matches[0]);
+            if ($count > 0) {
+                $analysis['unicode_found'][$label] = $count;
+                $analysis['total_unicode'] += $count;
+            }
+        }
+        
+        return $analysis;
+    }
+
+    /**
+     * Nuevo método para obtener ubicación del elemento
+     *
+     * @param DOMElement $node Elemento DOM
+     * @param string $original_html Contenido HTML original
+     * @return array Array con 'tag', 'class', 'id', 'parent_tag', 'parent_class', 'block_type', 'block_name'
+     */
+    private function get_element_location($node, $original_html) {
+        $location = array(
+            'tag' => $node->tagName,
+            'class' => $node->getAttribute('class'),
+            'id' => $node->getAttribute('id'),
+            'parent_tag' => $node->parentNode ? $node->parentNode->tagName : null,
+            'parent_class' => $node->parentNode ? $node->parentNode->getAttribute('class') : null,
+        );
+        
+        // Identificar tipo de bloque
+        if (strpos($location['class'], 'wp-block-') !== false) {
+            $location['block_type'] = 'Gutenberg Block';
+            preg_match('/wp-block-([^\s]+)/', $location['class'], $matches);
+            if (!empty($matches[1])) {
+                $location['block_name'] = $matches[1];
+            }
+        } elseif (strpos($location['class'], 'rank-math') !== false) {
+            $location['block_type'] = 'RankMath Block';
+            if (strpos($location['class'], 'faq') !== false) {
+                $location['block_name'] = 'FAQ';
+            }
+        } elseif ($location['tag'] === 'p') {
+            $location['block_type'] = 'Paragraph';
+        } elseif (in_array($location['tag'], array('h1', 'h2', 'h3', 'h4', 'h5', 'h6'))) {
+            $location['block_type'] = 'Heading (' . strtoupper($location['tag']) . ')';
+        } elseif ($location['tag'] === 'div') {
+            $location['block_type'] = 'Div';
+            if (!empty($location['class'])) {
+                $location['block_name'] = $location['class'];
+            }
+        } elseif ($location['tag'] === 'span') {
+            $location['block_type'] = 'Span';
+        } else {
+            $location['block_type'] = ucfirst($location['tag']) . ' Element';
+        }
+        
+        return $location;
+    }
+
+    /**
+     * Nuevo método para registrar ubicación de cambios
+     *
+     * @param string $type Tipo de cambio (e.g., 'attribute', 'unicode')
+     * @param string $item Nombre del atributo/caracter Unicode
+     * @param array $location Ubicación del cambio
+     */
+    private function record_change_location($type, $item, $location) {
+        $key = $type . ':' . $item;
+        if (!isset($this->change_locations[$key])) {
+            $this->change_locations[$key] = array();
+        }
+        
+        // Construir clave de ubicación más descriptiva
+        $location_parts = array($location['block_type']);
+        
+        if (!empty($location['block_name'])) {
+            $location_parts[] = '(' . $location['block_name'] . ')';
+        }
+        
+        // Añadir clase si es relevante y no está ya incluida en block_name
+        if (!empty($location['class']) && strpos($location['block_type'], $location['class']) === false) {
+            // Limitar longitud de clase para evitar claves muy largas
+            $class_display = strlen($location['class']) > 50 ? substr($location['class'], 0, 50) . '...' : $location['class'];
+            $location_parts[] = 'class: ' . $class_display;
+        }
+        
+        $location_key = implode(' ', $location_parts);
+        
+        if (!isset($this->change_locations[$key][$location_key])) {
+            $this->change_locations[$key][$location_key] = 0;
+        }
+        $this->change_locations[$key][$location_key]++;
+    }
+
+    /**
+     * Nuevo método para obtener ubicaciones
+     *
+     * @return array Array de ubicaciones
+     */
+    public function get_change_locations() {
+        return $this->change_locations;
     }
 }
 

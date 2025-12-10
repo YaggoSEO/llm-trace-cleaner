@@ -35,9 +35,10 @@ class LLM_Trace_Cleaner_Logger {
      * @param bool $force_log Forzar registro incluso si las stats están vacías (cuando el contenido cambió)
      * @param string $original_content Contenido original (opcional, para detectar atributos cuando stats está vacío)
      * @param string $cleaned_content Contenido limpio (opcional, para detectar atributos cuando stats está vacío)
+     * @param array $change_locations Ubicaciones de los cambios realizados
      * @return int|false ID del registro insertado o false en caso de error
      */
-    public function log_action($action_type, $post_id, $post_title, $stats = array(), $force_log = false, $original_content = '', $cleaned_content = '') {
+    public function log_action($action_type, $post_id, $post_title, $stats = array(), $force_log = false, $original_content = '', $cleaned_content = '', $change_locations = array()) {
         // Solo registrar si hay atributos eliminados, a menos que se fuerce
         if (empty($stats) && !$force_log) {
             return false;
@@ -64,11 +65,23 @@ class LLM_Trace_Cleaner_Logger {
             }
 
             if (!empty($combined)) {
-                $details = $cleaner->format_stats($combined);
+                $stats = $combined; // Usar stats detectadas
             } else {
-                $details = __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
+                // Si no hay stats y no hay ubicaciones, usar mensaje genérico
+                if (empty($change_locations)) {
+                    $details = __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
+                } else {
+                    // Si hay ubicaciones pero no stats, formatear solo ubicaciones
+                    $details = $this->format_stats_with_locations(array(), $change_locations);
+                }
             }
-        } else {
+        }
+        
+        // Formatear detalles con ubicaciones si están disponibles
+        if (!empty($change_locations) && !empty($stats)) {
+            $details = $this->format_stats_with_locations($stats, $change_locations);
+        } elseif (empty($details)) {
+            // Si no hay ubicaciones, usar formato estándar
             $details = $cleaner->format_stats($stats);
         }
         
@@ -366,6 +379,96 @@ class LLM_Trace_Cleaner_Logger {
             }
         }
         return $detected;
+    }
+
+    /**
+     * Formatear estadísticas con ubicaciones.
+     *
+     * @param array $stats Estadísticas de atributos eliminados.
+     * @param array $locations Ubicaciones de los cambios.
+     * @return string Detalles formateados con ubicaciones.
+     */
+    private function format_stats_with_locations($stats, $locations) {
+        $parts = array();
+        
+        // Procesar atributos con ubicaciones
+        foreach ($stats as $attr => $count) {
+            // Saltar si es Unicode (se procesa después)
+            if (strpos($attr, 'unicode:') === 0) {
+                continue;
+            }
+            
+            $part = sprintf('%s: %d eliminado%s', $attr, $count, $count > 1 ? 's' : '');
+            
+            // Añadir ubicaciones si están disponibles
+            $location_key = 'attribute:' . $attr;
+            if (isset($locations[$location_key])) {
+                $location_parts = array();
+                foreach ($locations[$location_key] as $loc => $loc_count) {
+                    $location_parts[] = sprintf('%s (%d)', $loc, $loc_count);
+                }
+                if (!empty($location_parts)) {
+                    // Limitar a 3 ubicaciones para no hacer el log muy largo
+                    $part .= ' [en: ' . implode(', ', array_slice($location_parts, 0, 3)) . 
+                            (count($location_parts) > 3 ? '...' : '') . ']';
+                }
+            }
+            
+            $parts[] = $part;
+        }
+        
+        // Procesar Unicode con ubicaciones
+        foreach ($stats as $key => $count) {
+            if (strpos($key, 'unicode:') === 0) {
+                $unicode_type = str_replace('unicode: ', '', $key);
+                $part = sprintf('Unicode %s: %d eliminado%s', $unicode_type, $count, $count > 1 ? 's' : '');
+                
+                // Añadir ubicaciones si están disponibles
+                $location_key = 'unicode:' . $unicode_type;
+                if (isset($locations[$location_key])) {
+                    $location_parts = array();
+                    foreach ($locations[$location_key] as $loc => $loc_count) {
+                        $location_parts[] = sprintf('%s (%d)', $loc, $loc_count);
+                    }
+                    if (!empty($location_parts)) {
+                        $part .= ' [en: ' . implode(', ', array_slice($location_parts, 0, 3)) . 
+                                (count($location_parts) > 3 ? '...' : '') . ']';
+                    }
+                }
+                
+                $parts[] = $part;
+            }
+        }
+        
+        // Si no hay stats pero hay ubicaciones, mostrar solo ubicaciones
+        if (empty($parts) && !empty($locations)) {
+            foreach ($locations as $key => $locs) {
+                $type_parts = explode(':', $key, 2);
+                $type = isset($type_parts[0]) ? $type_parts[0] : 'change';
+                $item = isset($type_parts[1]) ? $type_parts[1] : '';
+                
+                $total = array_sum($locs);
+                $part = sprintf('%s %s: %d cambio%s', 
+                    ucfirst($type), 
+                    $item, 
+                    $total, 
+                    $total > 1 ? 's' : ''
+                );
+                
+                $location_parts = array();
+                foreach ($locs as $loc => $loc_count) {
+                    $location_parts[] = sprintf('%s (%d)', $loc, $loc_count);
+                }
+                if (!empty($location_parts)) {
+                    $part .= ' [en: ' . implode(', ', array_slice($location_parts, 0, 3)) . 
+                            (count($location_parts) > 3 ? '...' : '') . ']';
+                }
+                
+                $parts[] = $part;
+            }
+        }
+        
+        return !empty($parts) ? implode('; ', $parts) : __('Contenido modificado (normalización de HTML o cambios menores)', 'llm-trace-cleaner');
     }
 }
 

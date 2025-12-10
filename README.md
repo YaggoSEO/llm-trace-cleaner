@@ -303,6 +303,14 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.3.0
+- **Registro de actividad mejorado**: Ahora se muestra exactamente qué cambios se realizaron y dónde (párrafo, bloque CSS, etc.)
+- **Opciones de configuración de limpieza**: Añadidas opciones para activar/desactivar limpieza de parámetros y Unicode (por defecto desactivadas)
+- **Análisis previo**: Sistema de análisis previo que muestra qué elementos se encontraron antes de limpiar
+- **Selección de tipos de limpieza**: Interfaz para seleccionar qué tipos de limpieza aplicar con botón "Seleccionar todo"
+- **Ubicaciones detalladas en logs**: Los logs ahora incluyen información sobre dónde se realizaron los cambios (Gutenberg Block, Paragraph, Heading, etc.)
+- **Control granular**: Los usuarios pueden elegir exactamente qué limpiar basándose en el análisis previo
+
 ### 1.2.1
 - **Detección mejorada de bloques de Gutenberg**: Sistema mejorado para detectar bloques de Gutenberg por clases CSS cuando no hay comentarios de Gutenberg disponibles
 - **Preservación de bloques RankMath FAQ**: El sistema ahora detecta y preserva bloques de RankMath FAQ por sus clases CSS específicas (`wp-block-rank-math-faq-block` y `rank-math-block`)

@@ -40,6 +40,8 @@ class LLM_Trace_Cleaner_Admin {
         add_action('wp_ajax_llm_trace_cleaner_process_batch', array($this, 'ajax_process_batch'));
         add_action('wp_ajax_llm_trace_cleaner_get_progress', array($this, 'ajax_get_progress'));
         add_action('wp_ajax_llm_trace_cleaner_log_error', array($this, 'ajax_log_error'));
+        add_action('wp_ajax_llm_trace_cleaner_analyze_content', array($this, 'ajax_analyze_content'));
+        add_action('wp_ajax_llm_trace_cleaner_analyze_all_posts', array($this, 'ajax_analyze_all_posts'));
     }
     
     /**
@@ -116,6 +118,9 @@ class LLM_Trace_Cleaner_Admin {
             if ($batch_size < 1) $batch_size = 1;
             if ($batch_size > 100) $batch_size = 100;
             update_option('llm_trace_cleaner_batch_size', $batch_size);
+            
+            update_option('llm_trace_cleaner_clean_attributes', isset($_POST['llm_trace_cleaner_clean_attributes']));
+            update_option('llm_trace_cleaner_clean_unicode', isset($_POST['llm_trace_cleaner_clean_unicode']));
             
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-success is-dismissible"><p>' . 
@@ -385,7 +390,21 @@ class LLM_Trace_Cleaner_Admin {
                     }
                     
                     $original_content = $post->post_content;
-                    $cleaned_content = $cleaner->clean_html($original_content);
+                    
+                    $clean_options = array(
+                        'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false),
+                        'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false),
+                        'track_locations' => true
+                    );
+                    
+                    // Si viene desde análisis previo, usar selección del usuario
+                    if (isset($_POST['selected_clean_types'])) {
+                        $selected = json_decode(stripslashes($_POST['selected_clean_types']), true);
+                        $clean_options['clean_attributes'] = isset($selected['attributes']) && $selected['attributes'];
+                        $clean_options['clean_unicode'] = isset($selected['unicode']) && $selected['unicode'];
+                    }
+                    
+                    $cleaned_content = $cleaner->clean_html($original_content, $clean_options);
                     
                     if ($cleaned_content !== $original_content) {
                         // Medir tiempo de actualización
@@ -427,7 +446,8 @@ class LLM_Trace_Cleaner_Admin {
                         }
                         
                         // Registrar en el log - forzar registro si el contenido cambió (incluso sin stats)
-                        $logger->log_action('manual', $post_id, $post->post_title, $stats, true, $original_content, $cleaned_content);
+                        $change_locations = $cleaner->get_change_locations();
+                        $logger->log_action('manual', $post_id, $post->post_title, $stats, true, $original_content, $cleaned_content, $change_locations);
                     }
                     
                     $post_total_time = microtime(true) - $post_start_time;
@@ -1373,6 +1393,41 @@ class LLM_Trace_Cleaner_Admin {
                             </tr>
                             <tr>
                                 <th scope="row">
+                                    <label><?php echo esc_html__('Tipos de limpieza', 'llm-trace-cleaner'); ?></label>
+                                </th>
+                                <td>
+                                    <fieldset>
+                                        <label style="display: block; margin-bottom: 10px;">
+                                            <input type="checkbox" 
+                                                   name="llm_trace_cleaner_clean_attributes" 
+                                                   id="llm_trace_cleaner_clean_attributes" 
+                                                   value="1" 
+                                                   <?php checked(get_option('llm_trace_cleaner_clean_attributes', false), true); ?>>
+                                            <strong><?php echo esc_html__('Limpiar parámetros y atributos de rastreo', 'llm-trace-cleaner'); ?></strong>
+                                        </label>
+                                        <p class="description" style="margin-left: 25px; margin-top: 5px; margin-bottom: 15px;">
+                                            <?php echo esc_html__('Elimina atributos como data-llm, data-start, data-end, data-offset-key, etc.', 'llm-trace-cleaner'); ?>
+                                        </p>
+                                        <label style="display: block;">
+                                            <input type="checkbox" 
+                                                   name="llm_trace_cleaner_clean_unicode" 
+                                                   id="llm_trace_cleaner_clean_unicode" 
+                                                   value="1" 
+                                                   <?php checked(get_option('llm_trace_cleaner_clean_unicode', false), true); ?>>
+                                            <strong><?php echo esc_html__('Limpiar caracteres Unicode invisibles', 'llm-trace-cleaner'); ?></strong>
+                                        </label>
+                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
+                                            <?php echo esc_html__('Elimina caracteres invisibles como Zero Width Space, Zero Width Non-Joiner, etc.', 'llm-trace-cleaner'); ?>
+                                        </p>
+                                    </fieldset>
+                                    <p class="description" style="margin-top: 10px;">
+                                        <strong><?php echo esc_html__('Nota:', 'llm-trace-cleaner'); ?></strong> 
+                                        <?php echo esc_html__('Por defecto, ambos tipos de limpieza están desactivados. Actívalos según tus necesidades. El sistema realizará un análisis previo antes de limpiar para que puedas seleccionar qué limpiar.', 'llm-trace-cleaner'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
                                     <label for="llm_trace_cleaner_telemetry_opt_in">
                                         <?php echo esc_html__('Compartir estadísticas anónimas', 'llm-trace-cleaner'); ?>
                                     </label>
@@ -1391,6 +1446,38 @@ class LLM_Trace_Cleaner_Admin {
                                     </p>
                                 </td>
                             </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label><?php echo esc_html__('Tipos de limpieza', 'llm-trace-cleaner'); ?></label>
+                                </th>
+                                <td>
+                                    <fieldset>
+                                        <label>
+                                            <input type="checkbox" 
+                                                   name="llm_trace_cleaner_clean_attributes" 
+                                                   id="llm_trace_cleaner_clean_attributes" 
+                                                   value="1" 
+                                                   <?php checked(get_option('llm_trace_cleaner_clean_attributes', false), true); ?>>
+                                            <?php echo esc_html__('Limpiar parámetros y atributos de rastreo', 'llm-trace-cleaner'); ?>
+                                        </label>
+                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
+                                            <?php echo esc_html__('Elimina atributos como data-llm, data-start, data-end, etc.', 'llm-trace-cleaner'); ?>
+                                        </p>
+                                        <br>
+                                        <label>
+                                            <input type="checkbox" 
+                                                   name="llm_trace_cleaner_clean_unicode" 
+                                                   id="llm_trace_cleaner_clean_unicode" 
+                                                   value="1" 
+                                                   <?php checked(get_option('llm_trace_cleaner_clean_unicode', false), true); ?>>
+                                            <?php echo esc_html__('Limpiar caracteres Unicode invisibles', 'llm-trace-cleaner'); ?>
+                                        </label>
+                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
+                                            <?php echo esc_html__('Elimina caracteres invisibles como Zero Width Space, etc.', 'llm-trace-cleaner'); ?>
+                                        </p>
+                                    </fieldset>
+                                </td>
+                            </tr>
                         </table>
                         <p class="submit">
                             <input type="submit" 
@@ -1405,8 +1492,43 @@ class LLM_Trace_Cleaner_Admin {
                 <div class="llm-trace-cleaner-section">
                     <h2><?php echo esc_html__('Limpieza manual', 'llm-trace-cleaner'); ?></h2>
                     <p>
-                        <?php echo esc_html__('Este proceso escaneará todas las entradas y páginas publicadas y eliminará los atributos de rastreo LLM encontrados. El proceso se ejecuta en lotes pequeños para evitar sobrecargar el servidor.', 'llm-trace-cleaner'); ?>
+                        <?php echo esc_html__('Primero se realizará un análisis del contenido para identificar qué elementos se pueden limpiar. Luego podrás seleccionar qué tipos de limpieza aplicar.', 'llm-trace-cleaner'); ?>
                     </p>
+                    
+                    <!-- Área de análisis previo (oculta inicialmente) -->
+                    <div id="llm-trace-cleaner-analysis" style="display: none; margin: 20px 0; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">
+                        <h3><?php echo esc_html__('Análisis previo', 'llm-trace-cleaner'); ?></h3>
+                        <div id="llm-trace-cleaner-analysis-content">
+                            <p><?php echo esc_html__('Analizando contenido...', 'llm-trace-cleaner'); ?></p>
+                        </div>
+                        
+                        <div id="llm-trace-cleaner-selection" style="display: none; margin-top: 20px;">
+                            <h4><?php echo esc_html__('Selecciona qué limpiar:', 'llm-trace-cleaner'); ?></h4>
+                            <fieldset style="margin: 15px 0;">
+                                <label style="display: block; margin-bottom: 10px;">
+                                    <input type="checkbox" 
+                                           id="llm-trace-cleaner-select-attributes" 
+                                           value="1">
+                                    <strong><?php echo esc_html__('Limpiar parámetros y atributos de rastreo', 'llm-trace-cleaner'); ?></strong>
+                                    <span id="llm-trace-cleaner-attributes-count" style="color: #666; margin-left: 10px;"></span>
+                                </label>
+                                <label style="display: block;">
+                                    <input type="checkbox" 
+                                           id="llm-trace-cleaner-select-unicode" 
+                                           value="1">
+                                    <strong><?php echo esc_html__('Limpiar caracteres Unicode invisibles', 'llm-trace-cleaner'); ?></strong>
+                                    <span id="llm-trace-cleaner-unicode-count" style="color: #666; margin-left: 10px;"></span>
+                                </label>
+                            </fieldset>
+                            <p>
+                                <button type="button" 
+                                        id="llm-trace-cleaner-select-all" 
+                                        class="button button-secondary">
+                                    <?php echo esc_html__('Seleccionar todo', 'llm-trace-cleaner'); ?>
+                                </button>
+                            </p>
+                        </div>
+                    </div>
                     
                     <!-- Área de progreso (oculta inicialmente) -->
                     <div id="llm-trace-cleaner-progress" style="display: none; margin: 20px 0;">
@@ -1428,9 +1550,15 @@ class LLM_Trace_Cleaner_Admin {
                     
                     <p class="submit">
                         <button type="button" 
+                                id="llm-trace-cleaner-analyze-btn" 
+                                class="button button-primary">
+                            <?php echo esc_html__('Analizar contenido', 'llm-trace-cleaner'); ?>
+                        </button>
+                        <button type="button" 
                                 id="llm-trace-cleaner-start-btn" 
-                                class="button button-secondary">
-                            <?php echo esc_html__('Escanear y limpiar contenido ahora', 'llm-trace-cleaner'); ?>
+                                class="button button-secondary"
+                                style="display: none;">
+                            <?php echo esc_html__('Iniciar limpieza', 'llm-trace-cleaner'); ?>
                         </button>
                         <button type="button" 
                                 id="llm-trace-cleaner-stop-btn" 
@@ -1648,9 +1776,137 @@ class LLM_Trace_Cleaner_Admin {
             var ajaxNonce = '<?php echo wp_create_nonce('llm_trace_cleaner_ajax'); ?>';
             var ajaxUrl = '<?php echo admin_url('admin-ajax.php'); ?>';
             
+            var selectedCleanTypes = {
+                attributes: false,
+                unicode: false
+            };
+            
+            // Botón de análisis previo
+            $('#llm-trace-cleaner-analyze-btn').on('click', function() {
+                $(this).prop('disabled', true).text('<?php echo esc_js(__('Analizando...', 'llm-trace-cleaner')); ?>');
+                $('#llm-trace-cleaner-analysis').show();
+                $('#llm-trace-cleaner-analysis-content').html('<p><?php echo esc_js(__('Analizando contenido...', 'llm-trace-cleaner')); ?></p>');
+                
+                $.ajax({
+                    url: ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'llm_trace_cleaner_analyze_all_posts',
+                        nonce: ajaxNonce
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var data = response.data;
+                            displayAnalysisResults(data);
+                        } else {
+                            $('#llm-trace-cleaner-analysis-content').html(
+                                '<p style="color: red;">Error: ' + (response.data.message || 'Error desconocido') + '</p>'
+                            );
+                            $('#llm-trace-cleaner-analyze-btn').prop('disabled', false).text('<?php echo esc_js(__('Analizar contenido', 'llm-trace-cleaner')); ?>');
+                        }
+                    },
+                    error: function() {
+                        $('#llm-trace-cleaner-analysis-content').html(
+                            '<p style="color: red;"><?php echo esc_js(__('Error de conexión. Por favor, intenta de nuevo.', 'llm-trace-cleaner')); ?></p>'
+                        );
+                        $('#llm-trace-cleaner-analyze-btn').prop('disabled', false).text('<?php echo esc_js(__('Analizar contenido', 'llm-trace-cleaner')); ?>');
+                    }
+                });
+            });
+            
+            // Mostrar resultados del análisis
+            function displayAnalysisResults(data) {
+                var html = '<p><strong><?php echo esc_js(__('Total de posts:', 'llm-trace-cleaner')); ?></strong> ' + data.total_posts + '</p>';
+                
+                if (data.sample_size < data.total_posts) {
+                    html += '<p style="color: #666; font-style: italic;"><?php echo esc_js(__('(Análisis basado en una muestra de', 'llm-trace-cleaner')); ?> ' + data.sample_size + ' <?php echo esc_js(__('posts)', 'llm-trace-cleaner')); ?></p>';
+                }
+                
+                if (data.total_attributes > 0 || data.total_unicode > 0) {
+                    html += '<h4><?php echo esc_js(__('Elementos encontrados:', 'llm-trace-cleaner')); ?></h4><ul>';
+                    
+                    if (data.total_attributes > 0) {
+                        html += '<li><strong><?php echo esc_js(__('Atributos de rastreo:', 'llm-trace-cleaner')); ?></strong> ' + data.total_attributes;
+                        if (Object.keys(data.attributes_found).length > 0) {
+                            html += '<ul style="margin-left: 20px; margin-top: 5px;">';
+                            for (var attr in data.attributes_found) {
+                                html += '<li>' + attr + ': ' + data.attributes_found[attr] + '</li>';
+                            }
+                            html += '</ul>';
+                        }
+                        html += '</li>';
+                    }
+                    
+                    if (data.total_unicode > 0) {
+                        html += '<li><strong><?php echo esc_js(__('Caracteres Unicode invisibles:', 'llm-trace-cleaner')); ?></strong> ' + data.total_unicode;
+                        if (Object.keys(data.unicode_found).length > 0) {
+                            html += '<ul style="margin-left: 20px; margin-top: 5px;">';
+                            for (var unicode in data.unicode_found) {
+                                html += '<li>' + unicode + ': ' + data.unicode_found[unicode] + '</li>';
+                            }
+                            html += '</ul>';
+                        }
+                        html += '</li>';
+                    }
+                    
+                    html += '</ul>';
+                } else {
+                    html += '<p style="color: green;"><strong><?php echo esc_js(__('No se encontraron elementos para limpiar.', 'llm-trace-cleaner')); ?></strong></p>';
+                }
+                
+                $('#llm-trace-cleaner-analysis-content').html(html);
+                
+                // Mostrar opciones de selección si hay elementos para limpiar
+                if (data.has_attributes || data.has_unicode) {
+                    $('#llm-trace-cleaner-select-attributes').prop('checked', data.has_attributes);
+                    $('#llm-trace-cleaner-select-unicode').prop('checked', data.has_unicode);
+                    
+                    if (data.total_attributes > 0) {
+                        $('#llm-trace-cleaner-attributes-count').text('(' + data.total_attributes + ' encontrados)');
+                    }
+                    if (data.total_unicode > 0) {
+                        $('#llm-trace-cleaner-unicode-count').text('(' + data.total_unicode + ' encontrados)');
+                    }
+                    
+                    selectedCleanTypes.attributes = data.has_attributes;
+                    selectedCleanTypes.unicode = data.has_unicode;
+                    
+                    $('#llm-trace-cleaner-selection').show();
+                    $('#llm-trace-cleaner-start-btn').show();
+                } else {
+                    $('#llm-trace-cleaner-selection').hide();
+                    $('#llm-trace-cleaner-start-btn').hide();
+                }
+                
+                $('#llm-trace-cleaner-analyze-btn').prop('disabled', false).text('<?php echo esc_js(__('Reanalizar', 'llm-trace-cleaner')); ?>');
+            }
+            
+            // Botón seleccionar todo
+            $('#llm-trace-cleaner-select-all').on('click', function() {
+                $('#llm-trace-cleaner-select-attributes').prop('checked', true);
+                $('#llm-trace-cleaner-select-unicode').prop('checked', true);
+                selectedCleanTypes.attributes = true;
+                selectedCleanTypes.unicode = true;
+            });
+            
+            // Actualizar selección cuando cambian los checkboxes
+            $('#llm-trace-cleaner-select-attributes').on('change', function() {
+                selectedCleanTypes.attributes = $(this).is(':checked');
+            });
+            
+            $('#llm-trace-cleaner-select-unicode').on('change', function() {
+                selectedCleanTypes.unicode = $(this).is(':checked');
+            });
+            
             // Iniciar limpieza
             $('#llm-trace-cleaner-start-btn').on('click', function() {
-                if (!confirm('<?php echo esc_js(__('¿Estás seguro de que quieres escanear y limpiar todo el contenido?', 'llm-trace-cleaner')); ?>')) {
+                // Verificar que al menos una opción esté seleccionada
+                if (!selectedCleanTypes.attributes && !selectedCleanTypes.unicode) {
+                    alert('<?php echo esc_js(__('Por favor, selecciona al menos un tipo de limpieza.', 'llm-trace-cleaner')); ?>');
+                    return;
+                }
+                
+                if (!confirm('<?php echo esc_js(__('¿Estás seguro de que quieres iniciar la limpieza con las opciones seleccionadas?', 'llm-trace-cleaner')); ?>')) {
                     return;
                 }
                 
@@ -1658,6 +1914,7 @@ class LLM_Trace_Cleaner_Admin {
                 $('#llm-trace-cleaner-stop-btn').show();
                 $('#llm-trace-cleaner-progress').show();
                 $('#llm-trace-cleaner-result').hide();
+                $('#llm-trace-cleaner-analysis').hide();
                 shouldStop = false;
                 isProcessing = true;
                 offset = 0;
@@ -1710,7 +1967,8 @@ class LLM_Trace_Cleaner_Admin {
                         action: 'llm_trace_cleaner_process_batch',
                         nonce: ajaxNonce,
                         process_id: processId,
-                        offset: offset
+                        offset: offset,
+                        selected_clean_types: JSON.stringify(selectedCleanTypes)
                     },
                     success: function(response) {
                         if (response.success) {
@@ -1850,13 +2108,118 @@ class LLM_Trace_Cleaner_Admin {
             // Resetear UI
             function resetUI() {
                 isProcessing = false;
-                $('#llm-trace-cleaner-start-btn').prop('disabled', false);
+                $('#llm-trace-cleaner-start-btn').prop('disabled', false).hide();
                 $('#llm-trace-cleaner-stop-btn').hide();
                 $('#llm-trace-cleaner-progress-fill').css('width', '0%');
+                $('#llm-trace-cleaner-analyze-btn').prop('disabled', false).text('<?php echo esc_js(__('Analizar contenido', 'llm-trace-cleaner')); ?>');
             }
         });
         </script>
         <?php
+    }
+    
+    /**
+     * AJAX: Análisis previo del contenido
+     */
+    public function ajax_analyze_content() {
+        check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
+        }
+        
+        $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
+        if (!$post_id) {
+            wp_send_json_error(array('message' => __('ID de post inválido.', 'llm-trace-cleaner')));
+        }
+        
+        $post = get_post($post_id);
+        if (!$post) {
+            wp_send_json_error(array('message' => __('Post no encontrado.', 'llm-trace-cleaner')));
+        }
+        
+        $cleaner = new LLM_Trace_Cleaner_Cleaner();
+        $analysis = $cleaner->analyze_content($post->post_content);
+        
+        wp_send_json_success($analysis);
+    }
+    
+    /**
+     * AJAX: Analizar todos los posts antes de limpiar
+     */
+    public function ajax_analyze_all_posts() {
+        check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
+        }
+        
+        global $wpdb;
+        
+        // Obtener todos los IDs de posts publicados
+        $all_post_ids = $wpdb->get_col(
+            "SELECT ID FROM {$wpdb->posts} 
+             WHERE post_type IN ('post', 'page') 
+             AND post_status = 'publish' 
+             ORDER BY ID ASC"
+        );
+        
+        if (empty($all_post_ids)) {
+            wp_send_json_success(array(
+                'total_posts' => 0,
+                'attributes_found' => array(),
+                'unicode_found' => array(),
+                'total_attributes' => 0,
+                'total_unicode' => 0
+            ));
+        }
+        
+        $cleaner = new LLM_Trace_Cleaner_Cleaner();
+        $total_attributes = 0;
+        $total_unicode = 0;
+        $attributes_found = array();
+        $unicode_found = array();
+        
+        // Analizar una muestra de posts (máximo 100 para no sobrecargar)
+        $sample_size = min(100, count($all_post_ids));
+        $sample_ids = array_slice($all_post_ids, 0, $sample_size);
+        
+        foreach ($sample_ids as $post_id) {
+            $post = get_post($post_id);
+            if (!$post) {
+                continue;
+            }
+            
+            $analysis = $cleaner->analyze_content($post->post_content);
+            
+            // Acumular resultados
+            foreach ($analysis['attributes_found'] as $attr => $count) {
+                if (!isset($attributes_found[$attr])) {
+                    $attributes_found[$attr] = 0;
+                }
+                $attributes_found[$attr] += $count;
+                $total_attributes += $count;
+            }
+            
+            foreach ($analysis['unicode_found'] as $unicode => $count) {
+                if (!isset($unicode_found[$unicode])) {
+                    $unicode_found[$unicode] = 0;
+                }
+                $unicode_found[$unicode] += $count;
+                $total_unicode += $count;
+            }
+        }
+        
+        wp_send_json_success(array(
+            'total_posts' => count($all_post_ids),
+            'sample_size' => $sample_size,
+            'attributes_found' => $attributes_found,
+            'unicode_found' => $unicode_found,
+            'total_attributes' => $total_attributes,
+            'total_unicode' => $total_unicode,
+            'has_attributes' => $total_attributes > 0,
+            'has_unicode' => $total_unicode > 0
+        ));
     }
 }
 

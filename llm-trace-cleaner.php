@@ -3,7 +3,7 @@
  * Plugin Name: LLM Trace Cleaner
  * Plugin URI: https://github.com/YaggoSEO/llm-trace-cleaner
  * Description: Elimina atributos de rastreo de herramientas LLM (ChatGPT, Claude, Bard, etc.) del contenido HTML de entradas y páginas.
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: Yago Vázquez Gómez (Yaggoseo)
  * Author URI: https://yaggoseo.com
  * License: GPL v2 or later
@@ -19,7 +19,7 @@ defined('ABSPATH') || exit;
 // Verificar si las constantes ya están definidas (evita conflictos en actualizaciones)
 if (!defined('LLM_TRACE_CLEANER_VERSION')) {
     // Definir constantes del plugin
-    define('LLM_TRACE_CLEANER_VERSION', '1.2.1');
+    define('LLM_TRACE_CLEANER_VERSION', '1.3.0');
     define('LLM_TRACE_CLEANER_PLUGIN_DIR', plugin_dir_path(__FILE__));
     define('LLM_TRACE_CLEANER_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
@@ -192,9 +192,21 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         // Obtener el contenido actual
         $content = $post->post_content;
         
+        // Obtener opciones de configuración
+        $clean_options = array(
+            'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false),
+            'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false),
+            'track_locations' => true
+        );
+        
+        // Si ambas opciones están desactivadas, no hacer nada
+        if (!$clean_options['clean_attributes'] && !$clean_options['clean_unicode']) {
+            return;
+        }
+        
         // Limpiar el contenido
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
-        $cleaned_content = $cleaner->clean_html($content);
+        $cleaned_content = $cleaner->clean_html($content, $clean_options);
         
         // Si hubo cambios, actualizar el post
         if ($cleaned_content !== $content) {
@@ -225,7 +237,8 @@ if (!class_exists('LLM_Trace_Cleaner')) {
             // Registrar en el log - forzar registro si el contenido cambió (incluso sin stats)
             $logger = new LLM_Trace_Cleaner_Logger();
             $stats = $cleaner->get_last_stats();
-            $logger->log_action('auto', $post_id, $post->post_title, $stats, true, $content, $cleaned_content);
+            $change_locations = $cleaner->get_change_locations();
+            $logger->log_action('auto', $post_id, $post->post_title, $stats, true, $content, $cleaned_content, $change_locations);
         }
     }
     }

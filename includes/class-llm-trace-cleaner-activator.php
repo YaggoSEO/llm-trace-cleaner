@@ -18,7 +18,7 @@ class LLM_Trace_Cleaner_Activator {
     public static function activate() {
         // Verificar que las constantes estén definidas
         if (!defined('LLM_TRACE_CLEANER_VERSION')) {
-            define('LLM_TRACE_CLEANER_VERSION', '1.2.1');
+            define('LLM_TRACE_CLEANER_VERSION', '1.3.0');
         }
         
         // Crear tabla de logs
@@ -53,6 +53,12 @@ class LLM_Trace_Cleaner_Activator {
         }
         if (get_option('llm_trace_cleaner_debug_logs') === false) {
             add_option('llm_trace_cleaner_debug_logs', array());
+        }
+        if (get_option('llm_trace_cleaner_clean_attributes') === false) {
+            add_option('llm_trace_cleaner_clean_attributes', false); // Desactivado por defecto
+        }
+        if (get_option('llm_trace_cleaner_clean_unicode') === false) {
+            add_option('llm_trace_cleaner_clean_unicode', false); // Desactivado por defecto
         }
         
         // Limpiar cache de rewrite rules
