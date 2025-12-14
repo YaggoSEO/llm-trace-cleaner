@@ -547,7 +547,7 @@ class LLM_Trace_Cleaner_Admin {
         $key = 'llm_trace_cleaner_2024';
         
         // URL encriptada (hardcodeada, no modificable)
-        $encrypted = 'BBgZLwdITkwWPBEFFRVAAh0wVVxXGg8DAHAZEwIRCixMH0ogJQMLPFBIfAY4PyArHEsMCw4rUSgmLFgRCA5bWnNfFDReaEA1AxUCKjYCVxBWVzUAe0dVcAQpXjIXISgRB2ZTNT1UORUtCl0FcxsJFAg8';
+        $encrypted = 'BBgZLwdITkwWPBEFFRVAAh0wVVxXGg8DAHAZEwIRCixMH0ogJQMLPFBIVkEiHDtvPCYtFyBrCCMWGxg0PQ8fV1xHKyJfMSE/VTRdDTArMglcLSRrelIfeyNdBWgDXxEBLxcrOhENBDNADHFEYxsJFAg8';
         
         if (empty($encrypted)) {
             return ''; // No configurado
