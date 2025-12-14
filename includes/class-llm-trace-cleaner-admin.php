@@ -1753,7 +1753,7 @@ class LLM_Trace_Cleaner_Admin {
             $('#llm-trace-cleaner-analyze-btn').on('click', function() {
                 $(this).prop('disabled', true).text('<?php echo esc_js(__('Analizando...', 'llm-trace-cleaner')); ?>');
                 $('#llm-trace-cleaner-analysis').show();
-                $('#llm-trace-cleaner-analysis-content').html('<p><?php echo esc_js(__('Analizando contenido...', 'llm-trace-cleaner')); ?></p>');
+                $('#llm-trace-cleaner-analysis-content').html('<p><?php echo esc_js(__('Analizando todos los posts... Esto puede tardar varios minutos dependiendo de la cantidad de contenido.', 'llm-trace-cleaner')); ?></p>');
                 
                 $.ajax({
                     url: ajaxUrl,
@@ -2142,17 +2142,20 @@ class LLM_Trace_Cleaner_Admin {
             ));
         }
         
+        // Aumentar tiempo de ejecución para análisis completo
+        @set_time_limit(300); // 5 minutos para análisis completo
+        @ini_set('memory_limit', '512M'); // Aumentar memoria si es posible
+        
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
         $total_attributes = 0;
         $total_unicode = 0;
         $attributes_found = array();
         $unicode_found = array();
         
-        // Analizar una muestra de posts (máximo 100 para no sobrecargar)
-        $sample_size = min(100, count($all_post_ids));
-        $sample_ids = array_slice($all_post_ids, 0, $sample_size);
+        // Analizar TODOS los posts (sin limitación)
+        $total_posts = count($all_post_ids);
         
-        foreach ($sample_ids as $post_id) {
+        foreach ($all_post_ids as $post_id) {
             $post = get_post($post_id);
             if (!$post) {
                 continue;
@@ -2179,8 +2182,8 @@ class LLM_Trace_Cleaner_Admin {
         }
         
         wp_send_json_success(array(
-            'total_posts' => count($all_post_ids),
-            'sample_size' => $sample_size,
+            'total_posts' => $total_posts,
+            'sample_size' => $total_posts, // Ya no es una muestra, es el total
             'attributes_found' => $attributes_found,
             'unicode_found' => $unicode_found,
             'total_attributes' => $total_attributes,
