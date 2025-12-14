@@ -1446,38 +1446,6 @@ class LLM_Trace_Cleaner_Admin {
                                     </p>
                                 </td>
                             </tr>
-                            <tr>
-                                <th scope="row">
-                                    <label><?php echo esc_html__('Tipos de limpieza', 'llm-trace-cleaner'); ?></label>
-                                </th>
-                                <td>
-                                    <fieldset>
-                                        <label>
-                                            <input type="checkbox" 
-                                                   name="llm_trace_cleaner_clean_attributes" 
-                                                   id="llm_trace_cleaner_clean_attributes" 
-                                                   value="1" 
-                                                   <?php checked(get_option('llm_trace_cleaner_clean_attributes', false), true); ?>>
-                                            <?php echo esc_html__('Limpiar parámetros y atributos de rastreo', 'llm-trace-cleaner'); ?>
-                                        </label>
-                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
-                                            <?php echo esc_html__('Elimina atributos como data-llm, data-start, data-end, etc.', 'llm-trace-cleaner'); ?>
-                                        </p>
-                                        <br>
-                                        <label>
-                                            <input type="checkbox" 
-                                                   name="llm_trace_cleaner_clean_unicode" 
-                                                   id="llm_trace_cleaner_clean_unicode" 
-                                                   value="1" 
-                                                   <?php checked(get_option('llm_trace_cleaner_clean_unicode', false), true); ?>>
-                                            <?php echo esc_html__('Limpiar caracteres Unicode invisibles', 'llm-trace-cleaner'); ?>
-                                        </label>
-                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
-                                            <?php echo esc_html__('Elimina caracteres invisibles como Zero Width Space, etc.', 'llm-trace-cleaner'); ?>
-                                        </p>
-                                    </fieldset>
-                                </td>
-                            </tr>
                         </table>
                         <p class="submit">
                             <input type="submit" 
