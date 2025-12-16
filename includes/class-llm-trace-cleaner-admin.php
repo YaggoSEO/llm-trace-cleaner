@@ -121,6 +121,8 @@ class LLM_Trace_Cleaner_Admin {
             
             update_option('llm_trace_cleaner_clean_attributes', isset($_POST['llm_trace_cleaner_clean_attributes']));
             update_option('llm_trace_cleaner_clean_unicode', isset($_POST['llm_trace_cleaner_clean_unicode']));
+            update_option('llm_trace_cleaner_clean_content_references', isset($_POST['llm_trace_cleaner_clean_content_references']));
+            update_option('llm_trace_cleaner_clean_utm_parameters', isset($_POST['llm_trace_cleaner_clean_utm_parameters']));
             
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-success is-dismissible"><p>' . 
@@ -394,6 +396,8 @@ class LLM_Trace_Cleaner_Admin {
                     $clean_options = array(
                         'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false),
                         'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false),
+                        'clean_content_references' => get_option('llm_trace_cleaner_clean_content_references', true),
+                        'clean_utm_parameters' => get_option('llm_trace_cleaner_clean_utm_parameters', true),
                         'track_locations' => true
                     );
                     
@@ -402,6 +406,8 @@ class LLM_Trace_Cleaner_Admin {
                         $selected = json_decode(stripslashes($_POST['selected_clean_types']), true);
                         $clean_options['clean_attributes'] = isset($selected['attributes']) && $selected['attributes'];
                         $clean_options['clean_unicode'] = isset($selected['unicode']) && $selected['unicode'];
+                        $clean_options['clean_content_references'] = isset($selected['content_references']) && $selected['content_references'];
+                        $clean_options['clean_utm_parameters'] = isset($selected['utm_parameters']) && $selected['utm_parameters'];
                     }
                     
                     $cleaned_content = $cleaner->clean_html($original_content, $clean_options);
@@ -1419,6 +1425,28 @@ class LLM_Trace_Cleaner_Admin {
                                         <p class="description" style="margin-left: 25px; margin-top: 5px;">
                                             <?php echo esc_html__('Elimina caracteres invisibles como Zero Width Space, Zero Width Non-Joiner, etc.', 'llm-trace-cleaner'); ?>
                                         </p>
+                                        <label style="display: block; margin-top: 15px;">
+                                            <input type="checkbox" 
+                                                   name="llm_trace_cleaner_clean_content_references" 
+                                                   id="llm_trace_cleaner_clean_content_references" 
+                                                   value="1" 
+                                                   <?php checked(get_option('llm_trace_cleaner_clean_content_references', true), true); ?>>
+                                            <strong><?php echo esc_html__('Limpiar referencias de contenido (ContentReference)', 'llm-trace-cleaner'); ?></strong>
+                                        </label>
+                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
+                                            <?php echo esc_html__('Elimina referencias de contenido LLM como ContentReference [oaicite:=0](index=0) y variaciones similares.', 'llm-trace-cleaner'); ?>
+                                        </p>
+                                        <label style="display: block; margin-top: 15px;">
+                                            <input type="checkbox" 
+                                                   name="llm_trace_cleaner_clean_utm_parameters" 
+                                                   id="llm_trace_cleaner_clean_utm_parameters" 
+                                                   value="1" 
+                                                   <?php checked(get_option('llm_trace_cleaner_clean_utm_parameters', true), true); ?>>
+                                            <strong><?php echo esc_html__('Limpiar parámetros UTM de enlaces', 'llm-trace-cleaner'); ?></strong>
+                                        </label>
+                                        <p class="description" style="margin-left: 25px; margin-top: 5px;">
+                                            <?php echo esc_html__('Elimina parámetros UTM de los enlaces como ?utm_source=chatgpt.com, ?utm_medium=chat, etc.', 'llm-trace-cleaner'); ?>
+                                        </p>
                                     </fieldset>
                                     <p class="description" style="margin-top: 10px;">
                                         <strong><?php echo esc_html__('Nota:', 'llm-trace-cleaner'); ?></strong> 
@@ -1486,6 +1514,20 @@ class LLM_Trace_Cleaner_Admin {
                                            value="1">
                                     <strong><?php echo esc_html__('Limpiar caracteres Unicode invisibles', 'llm-trace-cleaner'); ?></strong>
                                     <span id="llm-trace-cleaner-unicode-count" style="color: #666; margin-left: 10px;"></span>
+                                </label>
+                                <label style="display: block; margin-top: 10px;">
+                                    <input type="checkbox" 
+                                           id="llm-trace-cleaner-select-content-references" 
+                                           value="1">
+                                    <strong><?php echo esc_html__('Limpiar referencias de contenido (ContentReference)', 'llm-trace-cleaner'); ?></strong>
+                                    <span id="llm-trace-cleaner-content-references-count" style="color: #666; margin-left: 10px;"></span>
+                                </label>
+                                <label style="display: block; margin-top: 10px;">
+                                    <input type="checkbox" 
+                                           id="llm-trace-cleaner-select-utm-parameters" 
+                                           value="1">
+                                    <strong><?php echo esc_html__('Limpiar parámetros UTM de enlaces', 'llm-trace-cleaner'); ?></strong>
+                                    <span id="llm-trace-cleaner-utm-parameters-count" style="color: #666; margin-left: 10px;"></span>
                                 </label>
                             </fieldset>
                             <p>
@@ -1790,7 +1832,7 @@ class LLM_Trace_Cleaner_Admin {
                     html += '<p style="color: #666; font-style: italic;"><?php echo esc_js(__('(Análisis basado en una muestra de', 'llm-trace-cleaner')); ?> ' + data.sample_size + ' <?php echo esc_js(__('posts)', 'llm-trace-cleaner')); ?></p>';
                 }
                 
-                if (data.total_attributes > 0 || data.total_unicode > 0) {
+                if (data.total_attributes > 0 || data.total_unicode > 0 || data.total_content_references > 0 || data.total_utm_parameters > 0) {
                     html += '<h4><?php echo esc_js(__('Elementos encontrados:', 'llm-trace-cleaner')); ?></h4><ul>';
                     
                     if (data.total_attributes > 0) {
@@ -1817,6 +1859,30 @@ class LLM_Trace_Cleaner_Admin {
                         html += '</li>';
                     }
                     
+                    if (data.total_content_references > 0) {
+                        html += '<li><strong><?php echo esc_js(__('Referencias de contenido (ContentReference):', 'llm-trace-cleaner')); ?></strong> ' + data.total_content_references;
+                        if (data.content_references_found && Object.keys(data.content_references_found).length > 0) {
+                            html += '<ul style="margin-left: 20px; margin-top: 5px;">';
+                            for (var ref in data.content_references_found) {
+                                html += '<li>' + ref + ': ' + data.content_references_found[ref] + '</li>';
+                            }
+                            html += '</ul>';
+                        }
+                        html += '</li>';
+                    }
+                    
+                    if (data.total_utm_parameters > 0) {
+                        html += '<li><strong><?php echo esc_js(__('Parámetros UTM en enlaces:', 'llm-trace-cleaner')); ?></strong> ' + data.total_utm_parameters;
+                        if (data.utm_parameters_found && Object.keys(data.utm_parameters_found).length > 0) {
+                            html += '<ul style="margin-left: 20px; margin-top: 5px;">';
+                            for (var utm in data.utm_parameters_found) {
+                                html += '<li>' + utm + ': ' + data.utm_parameters_found[utm] + '</li>';
+                            }
+                            html += '</ul>';
+                        }
+                        html += '</li>';
+                    }
+                    
                     html += '</ul>';
                 } else {
                     html += '<p style="color: green;"><strong><?php echo esc_js(__('No se encontraron elementos para limpiar.', 'llm-trace-cleaner')); ?></strong></p>';
@@ -1825,9 +1891,11 @@ class LLM_Trace_Cleaner_Admin {
                 $('#llm-trace-cleaner-analysis-content').html(html);
                 
                 // Mostrar opciones de selección si hay elementos para limpiar
-                if (data.has_attributes || data.has_unicode) {
+                if (data.has_attributes || data.has_unicode || data.has_content_references || data.has_utm_parameters) {
                     $('#llm-trace-cleaner-select-attributes').prop('checked', data.has_attributes);
                     $('#llm-trace-cleaner-select-unicode').prop('checked', data.has_unicode);
+                    $('#llm-trace-cleaner-select-content-references').prop('checked', data.has_content_references);
+                    $('#llm-trace-cleaner-select-utm-parameters').prop('checked', data.has_utm_parameters);
                     
                     if (data.total_attributes > 0) {
                         $('#llm-trace-cleaner-attributes-count').text('(' + data.total_attributes + ' encontrados)');
@@ -1835,9 +1903,17 @@ class LLM_Trace_Cleaner_Admin {
                     if (data.total_unicode > 0) {
                         $('#llm-trace-cleaner-unicode-count').text('(' + data.total_unicode + ' encontrados)');
                     }
+                    if (data.total_content_references > 0) {
+                        $('#llm-trace-cleaner-content-references-count').text('(' + data.total_content_references + ' encontrados)');
+                    }
+                    if (data.total_utm_parameters > 0) {
+                        $('#llm-trace-cleaner-utm-parameters-count').text('(' + data.total_utm_parameters + ' encontrados)');
+                    }
                     
                     selectedCleanTypes.attributes = data.has_attributes;
                     selectedCleanTypes.unicode = data.has_unicode;
+                    selectedCleanTypes.content_references = data.has_content_references;
+                    selectedCleanTypes.utm_parameters = data.has_utm_parameters;
                     
                     $('#llm-trace-cleaner-selection').show();
                     $('#llm-trace-cleaner-start-btn').show();
@@ -1853,8 +1929,12 @@ class LLM_Trace_Cleaner_Admin {
             $('#llm-trace-cleaner-select-all').on('click', function() {
                 $('#llm-trace-cleaner-select-attributes').prop('checked', true);
                 $('#llm-trace-cleaner-select-unicode').prop('checked', true);
+                $('#llm-trace-cleaner-select-content-references').prop('checked', true);
+                $('#llm-trace-cleaner-select-utm-parameters').prop('checked', true);
                 selectedCleanTypes.attributes = true;
                 selectedCleanTypes.unicode = true;
+                selectedCleanTypes.content_references = true;
+                selectedCleanTypes.utm_parameters = true;
             });
             
             // Actualizar selección cuando cambian los checkboxes
@@ -1866,10 +1946,18 @@ class LLM_Trace_Cleaner_Admin {
                 selectedCleanTypes.unicode = $(this).is(':checked');
             });
             
+            $('#llm-trace-cleaner-select-content-references').on('change', function() {
+                selectedCleanTypes.content_references = $(this).is(':checked');
+            });
+            
+            $('#llm-trace-cleaner-select-utm-parameters').on('change', function() {
+                selectedCleanTypes.utm_parameters = $(this).is(':checked');
+            });
+            
             // Iniciar limpieza
             $('#llm-trace-cleaner-start-btn').on('click', function() {
                 // Verificar que al menos una opción esté seleccionada
-                if (!selectedCleanTypes.attributes && !selectedCleanTypes.unicode) {
+                if (!selectedCleanTypes.attributes && !selectedCleanTypes.unicode && !selectedCleanTypes.content_references && !selectedCleanTypes.utm_parameters) {
                     alert('<?php echo esc_js(__('Por favor, selecciona al menos un tipo de limpieza.', 'llm-trace-cleaner')); ?>');
                     return;
                 }
@@ -2137,8 +2225,12 @@ class LLM_Trace_Cleaner_Admin {
                 'total_posts' => 0,
                 'attributes_found' => array(),
                 'unicode_found' => array(),
+                'content_references_found' => array(),
+                'utm_parameters_found' => array(),
                 'total_attributes' => 0,
-                'total_unicode' => 0
+                'total_unicode' => 0,
+                'total_content_references' => 0,
+                'total_utm_parameters' => 0
             ));
         }
         
@@ -2149,8 +2241,12 @@ class LLM_Trace_Cleaner_Admin {
         $cleaner = new LLM_Trace_Cleaner_Cleaner();
         $total_attributes = 0;
         $total_unicode = 0;
+        $total_content_references = 0;
+        $total_utm_parameters = 0;
         $attributes_found = array();
         $unicode_found = array();
+        $content_references_found = array();
+        $utm_parameters_found = array();
         
         // Analizar TODOS los posts (sin limitación)
         $total_posts = count($all_post_ids);
@@ -2179,6 +2275,28 @@ class LLM_Trace_Cleaner_Admin {
                 $unicode_found[$unicode] += $count;
                 $total_unicode += $count;
             }
+            
+            // Acumular referencias de contenido
+            if (isset($analysis['content_references_found'])) {
+                foreach ($analysis['content_references_found'] as $ref => $count) {
+                    if (!isset($content_references_found[$ref])) {
+                        $content_references_found[$ref] = 0;
+                    }
+                    $content_references_found[$ref] += $count;
+                    $total_content_references += $count;
+                }
+            }
+            
+            // Acumular parámetros UTM
+            if (isset($analysis['utm_parameters_found'])) {
+                foreach ($analysis['utm_parameters_found'] as $utm => $count) {
+                    if (!isset($utm_parameters_found[$utm])) {
+                        $utm_parameters_found[$utm] = 0;
+                    }
+                    $utm_parameters_found[$utm] += $count;
+                    $total_utm_parameters += $count;
+                }
+            }
         }
         
         wp_send_json_success(array(
@@ -2186,10 +2304,16 @@ class LLM_Trace_Cleaner_Admin {
             'sample_size' => $total_posts, // Ya no es una muestra, es el total
             'attributes_found' => $attributes_found,
             'unicode_found' => $unicode_found,
+            'content_references_found' => $content_references_found,
+            'utm_parameters_found' => $utm_parameters_found,
             'total_attributes' => $total_attributes,
             'total_unicode' => $total_unicode,
+            'total_content_references' => $total_content_references,
+            'total_utm_parameters' => $total_utm_parameters,
             'has_attributes' => $total_attributes > 0,
-            'has_unicode' => $total_unicode > 0
+            'has_unicode' => $total_unicode > 0,
+            'has_content_references' => $total_content_references > 0,
+            'has_utm_parameters' => $total_utm_parameters > 0
         ));
     }
 }

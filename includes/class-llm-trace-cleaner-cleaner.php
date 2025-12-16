@@ -86,6 +86,8 @@ class LLM_Trace_Cleaner_Cleaner {
         $default_options = array(
             'clean_attributes' => true,
             'clean_unicode' => true,
+            'clean_content_references' => true,
+            'clean_utm_parameters' => true,
             'track_locations' => true
         );
         $options = wp_parse_args($options, $default_options);
@@ -122,6 +124,16 @@ class LLM_Trace_Cleaner_Cleaner {
         // Limpiar Unicode si está activado
         if ($options['clean_unicode']) {
             $cleaned_html = $this->remove_invisible_unicode($cleaned_html, $options);
+        }
+        
+        // Limpiar referencias de contenido (ContentReference) si está activado
+        if ($options['clean_content_references']) {
+            $cleaned_html = $this->remove_content_references($cleaned_html, $options);
+        }
+        
+        // Limpiar parámetros UTM de enlaces si está activado
+        if ($options['clean_utm_parameters']) {
+            $cleaned_html = $this->remove_utm_parameters($cleaned_html, $options);
         }
         
         // Restaurar comentarios de bloques de Gutenberg después de la limpieza
@@ -707,6 +719,195 @@ class LLM_Trace_Cleaner_Cleaner {
     }
 
     /**
+     * Eliminar referencias de contenido LLM (ContentReference)
+     * Ejemplos: ContentReference [oaicite:=0](index=0), ContentReference [oaicite:0](index=0)
+     *
+     * @param string $html Contenido HTML
+     * @param array $options Opciones de limpieza
+     * @return string HTML sin referencias de contenido
+     */
+    private function remove_content_references($html, $options = array()) {
+        // Patrones para detectar referencias de contenido LLM
+        $patterns = array(
+            // Formato estándar: ContentReference [oaicite:=0](index=0)
+            '/ContentReference\s*\[\s*oaicite\s*[:=]\s*\d+\s*\]\s*\(\s*index\s*=\s*\d+\s*\)/i',
+            // Variación sin "index=": ContentReference [oaicite:=0]()
+            '/ContentReference\s*\[\s*oaicite\s*[:=]\s*\d+\s*\]\s*\(\s*\)/i',
+            // Variación solo con oaicite: [oaicite:=0] o [oaicite:0]
+            '/\[\s*oaicite\s*[:=]\s*\d+\s*\]/i',
+        );
+        
+        $total_removed = 0;
+        
+        foreach ($patterns as $pattern) {
+            $count = 0;
+            $html = preg_replace($pattern, '', $html, -1, $count);
+            if ($count > 0) {
+                $total_removed += $count;
+            }
+        }
+        
+        if ($total_removed > 0) {
+            $this->increment_stat('content_reference', $total_removed);
+            
+            // Registrar ubicación genérica
+            if (!empty($options['track_locations'])) {
+                $this->record_change_location('content_reference', 'ContentReference', array(
+                    'block_type' => 'Text Content',
+                    'block_name' => null,
+                    'class' => null
+                ));
+            }
+        }
+        
+        return $html;
+    }
+
+    /**
+     * Eliminar parámetros UTM de los enlaces
+     * Elimina parámetros como ?utm_source=chatgpt.com, ?utm_medium=chat, etc.
+     *
+     * @param string $html Contenido HTML
+     * @param array $options Opciones de limpieza
+     * @return string HTML sin parámetros UTM
+     */
+    private function remove_utm_parameters($html, $options = array()) {
+        $total_removed = 0;
+        
+        // Procesar enlaces en atributos href
+        $pattern = '/(<a[^>]+href=["\'])([^"\']+)(["\'])/i';
+        $cleaned_html = preg_replace_callback($pattern, function($matches) use (&$total_removed) {
+            $before = $matches[1]; // <a ... href="
+            $url = $matches[2]; // URL completa
+            $quote = $matches[3]; // " o '
+            
+            // Parsear la URL
+            $parsed = parse_url($url);
+            if ($parsed === false || !isset($parsed['query'])) {
+                return $matches[0]; // No hay query string, devolver original
+            }
+            
+            // Parsear los parámetros de la query string
+            parse_str($parsed['query'], $params);
+            
+            // Contar parámetros UTM antes de eliminarlos
+            $utm_count = 0;
+            foreach ($params as $key => $value) {
+                if (strpos($key, 'utm_') === 0) {
+                    $utm_count++;
+                    unset($params[$key]);
+                }
+            }
+            
+            if ($utm_count > 0) {
+                $total_removed += $utm_count;
+                
+                // Reconstruir la URL sin parámetros UTM
+                $new_query = !empty($params) ? http_build_query($params) : '';
+                
+                // Reconstruir la URL completa
+                $new_url = $parsed['scheme'] . '://';
+                if (isset($parsed['user'])) {
+                    $new_url .= $parsed['user'];
+                    if (isset($parsed['pass'])) {
+                        $new_url .= ':' . $parsed['pass'];
+                    }
+                    $new_url .= '@';
+                }
+                $new_url .= $parsed['host'];
+                if (isset($parsed['port'])) {
+                    $new_url .= ':' . $parsed['port'];
+                }
+                if (isset($parsed['path'])) {
+                    $new_url .= $parsed['path'];
+                }
+                if (!empty($new_query)) {
+                    $new_url .= '?' . $new_query;
+                }
+                if (isset($parsed['fragment'])) {
+                    $new_url .= '#' . $parsed['fragment'];
+                }
+                
+                return $before . $new_url . $quote;
+            }
+            
+            return $matches[0]; // No había parámetros UTM
+        }, $html);
+        
+        // También procesar URLs en texto plano (no en atributos)
+        $pattern2 = '/(https?:\/\/[^\s<>"\']+)/i';
+        $cleaned_html = preg_replace_callback($pattern2, function($matches) use (&$total_removed) {
+            $url = $matches[1];
+            
+            // Parsear la URL
+            $parsed = parse_url($url);
+            if ($parsed === false || !isset($parsed['query'])) {
+                return $url; // No hay query string
+            }
+            
+            // Parsear los parámetros
+            parse_str($parsed['query'], $params);
+            
+            // Eliminar parámetros UTM
+            $utm_count = 0;
+            foreach ($params as $key => $value) {
+                if (strpos($key, 'utm_') === 0) {
+                    $utm_count++;
+                    unset($params[$key]);
+                }
+            }
+            
+            if ($utm_count > 0) {
+                $total_removed += $utm_count;
+                
+                // Reconstruir la URL
+                $new_query = !empty($params) ? http_build_query($params) : '';
+                
+                $new_url = $parsed['scheme'] . '://';
+                if (isset($parsed['user'])) {
+                    $new_url .= $parsed['user'];
+                    if (isset($parsed['pass'])) {
+                        $new_url .= ':' . $parsed['pass'];
+                    }
+                    $new_url .= '@';
+                }
+                $new_url .= $parsed['host'];
+                if (isset($parsed['port'])) {
+                    $new_url .= ':' . $parsed['port'];
+                }
+                if (isset($parsed['path'])) {
+                    $new_url .= $parsed['path'];
+                }
+                if (!empty($new_query)) {
+                    $new_url .= '?' . $new_query;
+                }
+                if (isset($parsed['fragment'])) {
+                    $new_url .= '#' . $parsed['fragment'];
+                }
+                
+                return $new_url;
+            }
+            
+            return $url; // No había parámetros UTM
+        }, $cleaned_html);
+        
+        if ($total_removed > 0) {
+            $this->increment_stat('utm_parameters', $total_removed);
+            
+            // Registrar ubicación genérica
+            if (!empty($options['track_locations'])) {
+                $this->record_change_location('utm_parameters', 'UTM Parameters', array(
+                    'block_type' => 'Link',
+                    'block_name' => null,
+                    'class' => null
+                ));
+            }
+        }
+        
+        return $cleaned_html;
+    }
+
+    /**
      * Obtener mapa de Unicode invisible (tras filtros)
      *
      * @return array
@@ -782,8 +983,12 @@ class LLM_Trace_Cleaner_Cleaner {
         $analysis = array(
             'attributes_found' => array(),
             'unicode_found' => array(),
+            'content_references_found' => array(),
+            'utm_parameters_found' => array(),
             'total_attributes' => 0,
-            'total_unicode' => 0
+            'total_unicode' => 0,
+            'total_content_references' => 0,
+            'total_utm_parameters' => 0
         );
         
         // Analizar atributos sin limpiar
@@ -807,6 +1012,68 @@ class LLM_Trace_Cleaner_Cleaner {
                 $analysis['unicode_found'][$label] = $count;
                 $analysis['total_unicode'] += $count;
             }
+        }
+        
+        // Analizar referencias de contenido (ContentReference)
+        $content_ref_patterns = array(
+            '/ContentReference\s*\[\s*oaicite\s*[:=]\s*\d+\s*\]\s*\(\s*index\s*=\s*\d+\s*\)/i',
+            '/ContentReference\s*\[\s*oaicite\s*[:=]\s*\d+\s*\]\s*\(\s*\)/i',
+            '/\[\s*oaicite\s*[:=]\s*\d+\s*\]/i',
+        );
+        
+        foreach ($content_ref_patterns as $pattern) {
+            preg_match_all($pattern, $html, $matches);
+            $count = count($matches[0]);
+            if ($count > 0) {
+                $analysis['content_references_found']['ContentReference'] = 
+                    ($analysis['content_references_found']['ContentReference'] ?? 0) + $count;
+                $analysis['total_content_references'] += $count;
+            }
+        }
+        
+        // Analizar parámetros UTM en enlaces
+        // Buscar en atributos href
+        $pattern1 = '/(<a[^>]+href=["\'])([^"\']+)(["\'])/i';
+        preg_match_all($pattern1, $html, $href_matches);
+        $utm_count = 0;
+        foreach ($href_matches[2] as $url) {
+            $parsed = parse_url($url);
+            if ($parsed !== false && isset($parsed['query'])) {
+                parse_str($parsed['query'], $params);
+                foreach ($params as $key => $value) {
+                    if (strpos($key, 'utm_') === 0) {
+                        $utm_count++;
+                    }
+                }
+            }
+        }
+        
+        // Buscar en URLs en texto plano
+        $pattern2 = '/(https?:\/\/[^\s<>"\']+)/i';
+        preg_match_all($pattern2, $html, $url_matches);
+        foreach ($url_matches[1] as $url) {
+            // Verificar que no esté dentro de un atributo href (ya lo procesamos arriba)
+            $parsed = parse_url($url);
+            if ($parsed !== false && isset($parsed['query'])) {
+                parse_str($parsed['query'], $params);
+                foreach ($params as $key => $value) {
+                    if (strpos($key, 'utm_') === 0) {
+                        // Verificar que no esté en un href ya procesado
+                        $pos = strpos($html, $url);
+                        if ($pos !== false) {
+                            $before = substr($html, max(0, $pos - 20), 20);
+                            if (strpos($before, 'href=') === false) {
+                                $utm_count++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if ($utm_count > 0) {
+            $analysis['utm_parameters_found']['UTM Parameters'] = $utm_count;
+            $analysis['total_utm_parameters'] = $utm_count;
         }
         
         return $analysis;
