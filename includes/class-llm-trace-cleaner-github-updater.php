@@ -77,7 +77,8 @@ class LLM_Trace_Cleaner_GitHub_Updater {
         add_filter('upgrader_source_selection', array($this, 'upgrader_source_selection'), 10, 4);
         
         // Añadir headers de autenticación para descargas desde GitHub
-        if (!empty($github_token)) {
+        // Solo si tenemos un token válido (no para repos públicos)
+        if (!empty($this->github_token)) {
             add_filter('http_request_args', array($this, 'add_github_auth_headers'), 10, 2);
         }
     }
@@ -204,13 +205,24 @@ class LLM_Trace_Cleaner_GitHub_Updater {
         
         // Obtener el nombre correcto del directorio del plugin
         $proper_folder_name = dirname($this->plugin_slug);
+        
+        // GitHub descarga como "repo-branch/" (ej: llm-trace-cleaner-main/)
+        // Necesitamos renombrarlo a "repo/" (ej: llm-trace-cleaner/)
         $new_source = trailingslashit($remote_source) . $proper_folder_name . '/';
         
-        // Renombrar el directorio
-        if ($source !== $new_source) {
+        // Si el directorio fuente tiene el sufijo -main o -master, renombrarlo
+        if ($source !== $new_source && $wp_filesystem->exists($source)) {
+            // Intentar renombrar el directorio
             if ($wp_filesystem->move($source, $new_source)) {
                 $this->log_debug('Directorio renombrado de ' . $source . ' a ' . $new_source);
                 return $new_source;
+            } else {
+                // Si falla el move, intentar copiar y eliminar
+                if ($wp_filesystem->copy($source, $new_source, true)) {
+                    $wp_filesystem->delete($source, true);
+                    $this->log_debug('Directorio copiado y renombrado de ' . $source . ' a ' . $new_source);
+                    return $new_source;
+                }
             }
         }
         
@@ -241,20 +253,9 @@ class LLM_Trace_Cleaner_GitHub_Updater {
             'Accept' => 'application/vnd.github.v3.raw'
         );
         
-        // Añadir token si está disponible y es válido
-        // Para repos públicos, no es necesario el token
-        if (!empty($this->github_token)) {
-            $clean_token = trim(preg_replace('/\s+/', '', $this->github_token));
-            
-            // Solo usar el token si tiene un formato válido
-            if (!empty($clean_token) && (strpos($clean_token, 'ghp_') === 0 || strpos($clean_token, 'github_pat_') === 0)) {
-                if (strpos($clean_token, 'ghp_') === 0) {
-                    $headers['Authorization'] = 'token ' . $clean_token;
-                } elseif (strpos($clean_token, 'github_pat_') === 0) {
-                    $headers['Authorization'] = 'Bearer ' . $clean_token;
-                }
-            }
-        }
+        // Para repos públicos, NO usar token (causa error 401 si el token es inválido)
+        // Solo usar token si es explícitamente necesario y válido
+        // NO añadir header Authorization para repos públicos sin token válido
         
         // #region agent log
         $log_data = array(
@@ -325,6 +326,7 @@ class LLM_Trace_Cleaner_GitHub_Updater {
     
     /**
      * Añadir headers de autenticación para descargas desde GitHub
+     * Solo para repos privados con token válido
      */
     public function add_github_auth_headers($args, $url) {
         if (strpos($url, 'github.com') !== false && 
@@ -333,8 +335,20 @@ class LLM_Trace_Cleaner_GitHub_Updater {
                 $args['headers'] = array();
             }
             
+            // Solo añadir token si es válido (no para repos públicos)
+            // Este método solo se llama si $this->github_token no está vacío
             if (!empty($this->github_token)) {
-                $args['headers']['Authorization'] = 'token ' . $this->github_token;
+                $clean_token = trim($this->github_token);
+                // Verificar que no sea un token de ejemplo
+                if (strpos($clean_token, 'xxxxx') === false && 
+                    strpos($clean_token, 'xxxxxxxx') === false && 
+                    strlen($clean_token) >= 20) {
+                    if (strpos($clean_token, 'ghp_') === 0) {
+                        $args['headers']['Authorization'] = 'token ' . $clean_token;
+                    } elseif (strpos($clean_token, 'github_pat_') === 0) {
+                        $args['headers']['Authorization'] = 'Bearer ' . $clean_token;
+                    }
+                }
             }
             
             if (strpos($url, '.zip') !== false) {
@@ -386,9 +400,8 @@ class LLM_Trace_Cleaner_GitHub_Updater {
             'User-Agent' => 'WordPress-LLM-Trace-Cleaner-Updater'
         );
         
-        if (!empty($this->github_token)) {
-            $headers['Authorization'] = 'token ' . $this->github_token;
-        }
+        // Para repos públicos, NO usar token
+        // Solo usar si es válido y necesario
         
         $response = wp_remote_get($url, array(
             'headers' => $headers,
@@ -429,9 +442,8 @@ class LLM_Trace_Cleaner_GitHub_Updater {
             'Accept' => 'application/vnd.github.v3.raw'
         );
         
-        if (!empty($this->github_token)) {
-            $headers['Authorization'] = 'token ' . $this->github_token;
-        }
+        // Para repos públicos, NO usar token
+        // Solo usar si es válido y necesario
         
         $response = wp_remote_get($url, array(
             'headers' => $headers,
