@@ -1193,6 +1193,22 @@ class LLM_Trace_Cleaner_Admin {
                         }
                     }
                     
+                    // Procesar limpieza de errores del updater
+                    if (isset($_POST['llm_trace_cleaner_clear_updater_errors']) && check_admin_referer('llm_trace_cleaner_clear_updater_errors')) {
+                        delete_option('llm_trace_cleaner_updater_errors');
+                        echo '<div class="notice notice-success"><p>' . 
+                             esc_html__('Errores del updater eliminados.', 'llm-trace-cleaner') . 
+                             '</p></div>';
+                    }
+                    
+                    // Procesar limpieza del historial de verificaciones
+                    if (isset($_POST['llm_trace_cleaner_clear_updater_logs']) && check_admin_referer('llm_trace_cleaner_clear_updater_logs')) {
+                        delete_option('llm_trace_cleaner_updater_logs');
+                        echo '<div class="notice notice-success"><p>' . 
+                             esc_html__('Historial de verificaciones eliminado.', 'llm-trace-cleaner') . 
+                             '</p></div>';
+                    }
+                    
                     // Obtener información del updater
                     $local_version = defined('LLM_TRACE_CLEANER_VERSION') ? LLM_TRACE_CLEANER_VERSION : 'N/A';
                     $cached_remote_version = get_transient('llm_trace_cleaner_remote_version');
@@ -1298,6 +1314,16 @@ class LLM_Trace_Cleaner_Admin {
                     
                     <?php if (!empty($updater_errors)): ?>
                         <h3 style="margin-top: 30px; color: #dc3232;"><?php echo esc_html__('Errores del Updater', 'llm-trace-cleaner'); ?></h3>
+                        <div style="margin-bottom: 15px;">
+                            <form method="post" action="" style="display: inline-block;">
+                                <?php wp_nonce_field('llm_trace_cleaner_clear_updater_errors'); ?>
+                                <input type="submit" 
+                                       name="llm_trace_cleaner_clear_updater_errors" 
+                                       class="button button-secondary" 
+                                       value="<?php echo esc_attr__('Limpiar errores del updater', 'llm-trace-cleaner'); ?>"
+                                       onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todos los errores del updater?', 'llm-trace-cleaner')); ?>');">
+                            </form>
+                        </div>
                         <table class="wp-list-table widefat fixed striped">
                             <thead>
                                 <tr>
@@ -1318,6 +1344,16 @@ class LLM_Trace_Cleaner_Admin {
                     
                     <?php if (!empty($updater_logs)): ?>
                         <h3 style="margin-top: 30px;"><?php echo esc_html__('Historial de Verificaciones', 'llm-trace-cleaner'); ?></h3>
+                        <div style="margin-bottom: 15px;">
+                            <form method="post" action="" style="display: inline-block;">
+                                <?php wp_nonce_field('llm_trace_cleaner_clear_updater_logs'); ?>
+                                <input type="submit" 
+                                       name="llm_trace_cleaner_clear_updater_logs" 
+                                       class="button button-secondary" 
+                                       value="<?php echo esc_attr__('Limpiar historial de verificaciones', 'llm-trace-cleaner'); ?>"
+                                       onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todo el historial de verificaciones?', 'llm-trace-cleaner')); ?>');">
+                            </form>
+                        </div>
                         <table class="wp-list-table widefat fixed striped">
                             <thead>
                                 <tr>

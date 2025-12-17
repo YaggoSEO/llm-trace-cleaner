@@ -325,6 +325,17 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.5.0
+- **Mejoras en el sistema de actualizaciones**: 
+  - Corrección del error 401 para repositorios públicos (no se usa token inválido)
+  - Validación mejorada de tokens de GitHub
+  - Mejora en el manejo del directorio `-main` al actualizar desde GitHub
+  - Botones para limpiar errores del updater y historial de verificaciones en la página de depuración
+- **Mejoras en la interfaz de depuración**:
+  - Botón para limpiar errores del updater
+  - Botón para limpiar historial de verificaciones
+  - Mejor organización de los logs del sistema de actualizaciones
+
 ### 1.4.0
 - 🔄 **Sistema de Actualizaciones Automáticas desde GitHub**
   - Verificación automática de nuevas versiones cada hora
