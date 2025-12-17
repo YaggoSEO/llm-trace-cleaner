@@ -29,6 +29,7 @@ Este plugin elimina automáticamente todos estos atributos, manteniendo tu conte
 - 🤖 **Detección de bots/LLMs**: Opción para desactivar caché cuando bots o herramientas LLM acceden al sitio
 - 🐛 **Depuración integrada**: Pestaña dedicada para diagnosticar errores y problemas durante el procesamiento
 - 📡 **Telemetría anónima (opt-in)**: Opción para compartir estadísticas anónimas con propósitos de investigación sobre LLMs y buscadores
+- 🔄 **Actualizaciones automáticas**: Sistema de actualizaciones directas desde GitHub sin necesidad de descargar manualmente
 
 ## 🎯 Atributos eliminados
 
@@ -70,6 +71,22 @@ El plugin elimina los siguientes atributos cuando aparecen en el HTML:
 - `data-user-id`
 - `data-ui-state`
 - Cualquier atributo `id` cuyo valor empiece por `model-response-message-contentr_`
+
+### Referencias de contenido LLM eliminadas
+
+El plugin también elimina referencias de contenido que algunos LLMs agregan al texto:
+
+- `ContentReference [oaicite:=0](index=0)` y variaciones
+- `[oaicite:0]`, `[oaicite:=1]`, etc.
+
+### Parámetros UTM eliminados de enlaces
+
+El plugin elimina parámetros UTM de los enlaces que algunos LLMs agregan automáticamente:
+
+- `?utm_source=chatgpt.com`
+- `?utm_medium=chat`
+- `?utm_campaign=...`
+- Y cualquier otro parámetro `utm_*`
 
 ### Caracteres Unicode invisibles eliminados
 
@@ -186,15 +203,20 @@ Esto asegura que los bots y herramientas LLM siempre vean el contenido más reci
 
 ```
 llm-trace-cleaner/
-├── llm-trace-cleaner.php          # Archivo principal
+├── llm-trace-cleaner.php                        # Archivo principal
+├── .env                                          # Token de GitHub (NO subir al repo)
+├── env.example                                   # Plantilla para .env
+├── CHANGELOG.md                                  # Historial de cambios
+├── README.md                                     # Documentación
 ├── includes/
 │   ├── class-llm-trace-cleaner-activator.php    # Activación/desactivación
 │   ├── class-llm-trace-cleaner-cleaner.php      # Lógica de limpieza HTML
 │   ├── class-llm-trace-cleaner-logger.php       # Sistema de logging
 │   ├── class-llm-trace-cleaner-cache.php        # Gestión de caché
-│   └── class-llm-trace-cleaner-admin.php         # Interfaz de administración
-├── llm-trace-cleaner.log          # Archivo de log (generado automáticamente)
-└── README.md
+│   ├── class-llm-trace-cleaner-admin.php        # Interfaz de administración
+│   ├── class-llm-trace-cleaner-env-loader.php   # Cargador de variables .env
+│   └── class-llm-trace-cleaner-github-updater.php # Sistema de actualizaciones
+└── llm-trace-cleaner.log                        # Archivo de log (generado)
 ```
 
 ## 🔧 Desarrollo
@@ -302,6 +324,23 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.4.0
+- 🔄 **Sistema de Actualizaciones Automáticas desde GitHub**
+  - Verificación automática de nuevas versiones cada hora
+  - Actualización directa desde el panel de administración de WordPress
+  - Soporte para repositorios públicos y privados (con token)
+  - Página de diagnóstico con estado del updater
+  - Logs de verificaciones y errores del updater
+- 🧹 **Limpieza de Referencias de Contenido (ContentReference)**
+  - Detecta y elimina referencias LLM como `ContentReference [oaicite:=0](index=0)`
+  - Soporte para múltiples variaciones del formato
+- 🔗 **Limpieza de Parámetros UTM de Enlaces**
+  - Elimina parámetros UTM de enlaces como `?utm_source=chatgpt.com`
+  - Soporte para todos los parámetros utm_* (utm_source, utm_medium, utm_campaign, etc.)
+  - Procesamiento robusto de URLs usando parse_url() y parse_str()
+- **Análisis previo mejorado**: Ahora procesa TODOS los posts (sin límite de 100)
+- **Interfaz actualizada**: Nuevas opciones de selección de tipos de limpieza
 
 ### 1.3.0
 - **Registro de actividad mejorado**: Ahora se muestra exactamente qué cambios se realizaron y dónde (párrafo, bloque CSS, etc.)
@@ -485,6 +524,40 @@ Los datos anónimos se utilizan exclusivamente para:
 ### Transparencia
 
 Todos los datos se envían de forma segura (HTTPS) y se almacenan de manera agregada. No se puede identificar ningún sitio individual a partir de los datos recopilados.
+
+## 🔄 Actualizaciones Automáticas
+
+El plugin incluye un sistema de actualizaciones automáticas desde GitHub:
+
+### ¿Cómo funciona?
+
+1. **Verificación automática**: Cada hora, el plugin consulta la última versión en GitHub
+2. **Notificación**: Si hay una nueva versión, aparece en `Plugins > Actualizaciones`
+3. **Actualización con un clic**: Puedes actualizar directamente desde el panel de WordPress
+4. **Diagnóstico**: En `LLM Trace Cleaner > Depuración` puedes ver el estado del sistema
+
+### Repositorios públicos
+
+Para repositorios públicos (como este), no se necesita configuración adicional. Las actualizaciones funcionan automáticamente.
+
+### Repositorios privados
+
+Si usas un fork privado:
+
+1. Ve a https://github.com/settings/tokens
+2. Genera un nuevo token con permiso `repo`
+3. Crea un archivo `.env` en la raíz del plugin:
+   ```
+   LLM_TRACE_CLEANER_GITHUB_TOKEN=ghp_tu_token_aqui
+   ```
+
+### Forzar verificación
+
+Para forzar una verificación de actualizaciones:
+
+1. Ve a `LLM Trace Cleaner > Depuración`
+2. En la sección "Sistema de Actualizaciones desde GitHub"
+3. Haz clic en "Forzar Verificación de Actualizaciones"
 
 ## 📞 Soporte
 

@@ -1174,6 +1174,185 @@ class LLM_Trace_Cleaner_Admin {
                         <p><?php echo esc_html__('No hay logs de depuración.', 'llm-trace-cleaner'); ?></p>
                     <?php endif; ?>
                 </div>
+                
+                <!-- Estado del Sistema de Actualizaciones -->
+                <div class="llm-trace-cleaner-section">
+                    <h2><?php echo esc_html__('Sistema de Actualizaciones desde GitHub', 'llm-trace-cleaner'); ?></h2>
+                    <p class="description">
+                        <?php echo esc_html__('Estado del sistema de actualizaciones automáticas desde GitHub.', 'llm-trace-cleaner'); ?>
+                    </p>
+                    
+                    <?php
+                    // Procesar limpieza de caché de actualizaciones
+                    if (isset($_POST['llm_trace_cleaner_clear_update_cache']) && check_admin_referer('llm_trace_cleaner_clear_update_cache')) {
+                        if (class_exists('LLM_Trace_Cleaner_GitHub_Updater')) {
+                            LLM_Trace_Cleaner_GitHub_Updater::clear_cache();
+                            echo '<div class="notice notice-success"><p>' . 
+                                 esc_html__('Caché de actualizaciones limpiado. Recarga la página de Plugins para verificar.', 'llm-trace-cleaner') . 
+                                 '</p></div>';
+                        }
+                    }
+                    
+                    // Obtener información del updater
+                    $local_version = defined('LLM_TRACE_CLEANER_VERSION') ? LLM_TRACE_CLEANER_VERSION : 'N/A';
+                    $cached_remote_version = get_transient('llm_trace_cleaner_remote_version');
+                    $has_token = defined('LLM_TRACE_CLEANER_GITHUB_TOKEN') && !empty(LLM_TRACE_CLEANER_GITHUB_TOKEN);
+                    $github_user = defined('LLM_TRACE_CLEANER_GITHUB_USER') ? LLM_TRACE_CLEANER_GITHUB_USER : 'No configurado';
+                    $github_repo = defined('LLM_TRACE_CLEANER_GITHUB_REPO') ? LLM_TRACE_CLEANER_GITHUB_REPO : 'No configurado';
+                    $github_branch = defined('LLM_TRACE_CLEANER_GITHUB_BRANCH') ? LLM_TRACE_CLEANER_GITHUB_BRANCH : 'main';
+                    $last_commit = get_transient('llm_trace_cleaner_last_commit');
+                    
+                    // Determinar si hay actualización disponible
+                    $update_available = $cached_remote_version && version_compare($local_version, $cached_remote_version, '<');
+                    ?>
+                    
+                    <table class="widefat">
+                        <thead>
+                            <tr>
+                                <th style="width: 200px;"><?php echo esc_html__('Parámetro', 'llm-trace-cleaner'); ?></th>
+                                <th><?php echo esc_html__('Valor', 'llm-trace-cleaner'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th><?php echo esc_html__('Versión Local:', 'llm-trace-cleaner'); ?></th>
+                                <td><strong><?php echo esc_html($local_version); ?></strong></td>
+                            </tr>
+                            <tr>
+                                <th><?php echo esc_html__('Versión Remota (Cache):', 'llm-trace-cleaner'); ?></th>
+                                <td>
+                                    <?php if ($cached_remote_version): ?>
+                                        <strong><?php echo esc_html($cached_remote_version); ?></strong>
+                                        <?php if ($update_available): ?>
+                                            <span style="color: #0073aa; margin-left: 10px;">
+                                                ✨ <?php echo esc_html__('¡Actualización disponible!', 'llm-trace-cleaner'); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span style="color: #46b450; margin-left: 10px;">
+                                                ✅ <?php echo esc_html__('Actualizado', 'llm-trace-cleaner'); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <em><?php echo esc_html__('No en cache (se verificará al recargar)', 'llm-trace-cleaner'); ?></em>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php echo esc_html__('Usuario GitHub:', 'llm-trace-cleaner'); ?></th>
+                                <td><code><?php echo esc_html($github_user); ?></code></td>
+                            </tr>
+                            <tr>
+                                <th><?php echo esc_html__('Repositorio:', 'llm-trace-cleaner'); ?></th>
+                                <td>
+                                    <code><?php echo esc_html($github_repo); ?></code>
+                                    <a href="https://github.com/<?php echo esc_attr($github_user); ?>/<?php echo esc_attr($github_repo); ?>" 
+                                       target="_blank" 
+                                       style="margin-left: 10px;">
+                                        <?php echo esc_html__('Ver en GitHub →', 'llm-trace-cleaner'); ?>
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php echo esc_html__('Rama:', 'llm-trace-cleaner'); ?></th>
+                                <td><code><?php echo esc_html($github_branch); ?></code></td>
+                            </tr>
+                            <tr>
+                                <th><?php echo esc_html__('Token de GitHub:', 'llm-trace-cleaner'); ?></th>
+                                <td>
+                                    <?php if ($has_token): ?>
+                                        <span style="color: #46b450;">✅ <?php echo esc_html__('Configurado (repos privados)', 'llm-trace-cleaner'); ?></span>
+                                    <?php else: ?>
+                                        <span style="color: #666;">ℹ️ <?php echo esc_html__('No configurado (repos públicos)', 'llm-trace-cleaner'); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th><?php echo esc_html__('Último Commit:', 'llm-trace-cleaner'); ?></th>
+                                <td><?php echo $last_commit ? esc_html($last_commit) : '<em>' . esc_html__('No en cache', 'llm-trace-cleaner') . '</em>'; ?></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div style="margin-top: 20px;">
+                        <form method="post" action="" style="display: inline-block;">
+                            <?php wp_nonce_field('llm_trace_cleaner_clear_update_cache'); ?>
+                            <input type="submit" 
+                                   name="llm_trace_cleaner_clear_update_cache" 
+                                   class="button button-secondary" 
+                                   value="<?php echo esc_attr__('Forzar Verificación de Actualizaciones', 'llm-trace-cleaner'); ?>">
+                        </form>
+                        <?php if ($update_available): ?>
+                            <a href="<?php echo esc_url(admin_url('plugins.php')); ?>" 
+                               class="button button-primary" 
+                               style="margin-left: 10px;">
+                                <?php echo esc_html__('Ir a Plugins para Actualizar', 'llm-trace-cleaner'); ?>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- Logs del Updater -->
+                    <?php
+                    $updater_logs = get_option('llm_trace_cleaner_updater_logs', array());
+                    $updater_errors = get_option('llm_trace_cleaner_updater_errors', array());
+                    ?>
+                    
+                    <?php if (!empty($updater_errors)): ?>
+                        <h3 style="margin-top: 30px; color: #dc3232;"><?php echo esc_html__('Errores del Updater', 'llm-trace-cleaner'); ?></h3>
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 150px;"><?php echo esc_html__('Fecha/Hora', 'llm-trace-cleaner'); ?></th>
+                                    <th><?php echo esc_html__('Error', 'llm-trace-cleaner'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (array_reverse($updater_errors) as $log): ?>
+                                    <tr>
+                                        <td><?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $log['datetime'])); ?></td>
+                                        <td><code style="color: #dc3232;"><?php echo esc_html($log['message']); ?></code></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($updater_logs)): ?>
+                        <h3 style="margin-top: 30px;"><?php echo esc_html__('Historial de Verificaciones', 'llm-trace-cleaner'); ?></h3>
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 150px;"><?php echo esc_html__('Fecha/Hora', 'llm-trace-cleaner'); ?></th>
+                                    <th style="width: 100px;"><?php echo esc_html__('Local', 'llm-trace-cleaner'); ?></th>
+                                    <th style="width: 100px;"><?php echo esc_html__('Remota', 'llm-trace-cleaner'); ?></th>
+                                    <th><?php echo esc_html__('Estado', 'llm-trace-cleaner'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (array_reverse($updater_logs) as $log): ?>
+                                    <tr>
+                                        <td><?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $log['datetime'])); ?></td>
+                                        <td><code><?php echo esc_html($log['local_version']); ?></code></td>
+                                        <td><code><?php echo esc_html($log['remote_version']); ?></code></td>
+                                        <td>
+                                            <?php if ($log['update_available']): ?>
+                                                <span style="color: #0073aa;">✨ <?php echo esc_html__('Actualización disponible', 'llm-trace-cleaner'); ?></span>
+                                            <?php else: ?>
+                                                <span style="color: #46b450;">✅ <?php echo esc_html__('Actualizado', 'llm-trace-cleaner'); ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                    
+                    <div class="notice notice-info" style="margin-top: 20px;">
+                        <p>
+                            <strong><?php echo esc_html__('Información:', 'llm-trace-cleaner'); ?></strong>
+                            <?php echo esc_html__('Las actualizaciones se verifican automáticamente cada hora. Para repositorios privados, configura un token en el archivo .env del plugin.', 'llm-trace-cleaner'); ?>
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
         <?php

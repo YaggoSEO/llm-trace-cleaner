@@ -19,10 +19,30 @@ defined('ABSPATH') || exit;
 // Verificar si las constantes ya están definidas (evita conflictos en actualizaciones)
 if (!defined('LLM_TRACE_CLEANER_VERSION')) {
     // Definir constantes del plugin
-    define('LLM_TRACE_CLEANER_VERSION', '1.3.0');
+    define('LLM_TRACE_CLEANER_VERSION', '1.4.0');
     define('LLM_TRACE_CLEANER_PLUGIN_DIR', plugin_dir_path(__FILE__));
     define('LLM_TRACE_CLEANER_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
+
+// ========================================
+// SISTEMA DE ACTUALIZACIONES DESDE GITHUB
+// ========================================
+
+// Cargar variables de entorno desde .env
+require_once plugin_dir_path(__FILE__) . 'includes/class-llm-trace-cleaner-env-loader.php';
+LLM_Trace_Cleaner_Env_Loader::load(plugin_dir_path(__FILE__) . '.env');
+
+// Configuración de GitHub (repositorio público)
+if (!defined('LLM_TRACE_CLEANER_GITHUB_USER')) {
+    define('LLM_TRACE_CLEANER_GITHUB_USER', 'YaggoSEO');
+}
+if (!defined('LLM_TRACE_CLEANER_GITHUB_REPO')) {
+    define('LLM_TRACE_CLEANER_GITHUB_REPO', 'llm-trace-cleaner');
+}
+if (!defined('LLM_TRACE_CLEANER_GITHUB_BRANCH')) {
+    define('LLM_TRACE_CLEANER_GITHUB_BRANCH', 'main');
+}
+// El token se carga desde .env (solo necesario para repositorios privados)
 
 /**
  * Clase principal del plugin
@@ -64,6 +84,48 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         
         // Verificar y ejecutar actualizaciones si es necesario
         add_action('admin_init', array($this, 'check_version'));
+        
+        // Inicializar sistema de actualizaciones desde GitHub
+        $this->init_github_updater();
+    }
+    
+    /**
+     * Inicializar sistema de actualizaciones desde GitHub
+     */
+    private function init_github_updater() {
+        if (defined('LLM_TRACE_CLEANER_GITHUB_USER') && defined('LLM_TRACE_CLEANER_GITHUB_REPO')) {
+            $updater_file = LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-github-updater.php';
+            
+            if (!file_exists($updater_file)) {
+                return;
+            }
+            
+            require_once $updater_file;
+            
+            if (!class_exists('LLM_Trace_Cleaner_GitHub_Updater')) {
+                return;
+            }
+            
+            // Obtener token (opcional para repos públicos)
+            $token = defined('LLM_TRACE_CLEANER_GITHUB_TOKEN') ? LLM_TRACE_CLEANER_GITHUB_TOKEN : null;
+            
+            // Limpiar el token si existe
+            if (!empty($token)) {
+                $token = trim($token);
+                $token = preg_replace('/\s+/', '', $token);
+            }
+            
+            $branch = defined('LLM_TRACE_CLEANER_GITHUB_BRANCH') ? LLM_TRACE_CLEANER_GITHUB_BRANCH : 'main';
+            
+            // Inicializar updater
+            new LLM_Trace_Cleaner_GitHub_Updater(
+                LLM_TRACE_CLEANER_PLUGIN_DIR . 'llm-trace-cleaner.php',
+                LLM_TRACE_CLEANER_GITHUB_USER,
+                LLM_TRACE_CLEANER_GITHUB_REPO,
+                $branch,
+                $token
+            );
+        }
     }
     
     /**
