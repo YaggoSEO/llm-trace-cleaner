@@ -38,11 +38,20 @@ class LLM_Trace_Cleaner_GitHub_Updater {
         // Limpiar y validar el token
         if (!empty($github_token)) {
             $clean_token = trim(preg_replace('/\s+/', '', $github_token));
-            // Solo asignar si tiene un formato válido
-            if (!empty($clean_token) && (strpos($clean_token, 'ghp_') === 0 || strpos($clean_token, 'github_pat_') === 0)) {
+            
+            // Validar que no sea un token de ejemplo
+            $is_example_token = (
+                strpos($clean_token, 'xxxxx') !== false ||
+                strpos($clean_token, 'xxxxxxxx') !== false ||
+                strlen($clean_token) < 20
+            );
+            
+            // Solo asignar si tiene un formato válido y no es un token de ejemplo
+            if (!empty($clean_token) && !$is_example_token && 
+                (strpos($clean_token, 'ghp_') === 0 || strpos($clean_token, 'github_pat_') === 0)) {
                 $this->github_token = $clean_token;
             } else {
-                // Token inválido, no usar para repos públicos
+                // Token inválido o de ejemplo, no usar para repos públicos
                 $this->github_token = null;
             }
         } else {

@@ -32,19 +32,8 @@ class LLM_Trace_Cleaner_Env_Loader {
         
         self::$env_file = $env_file;
         
-        // Si el .env no existe, intentar crearlo desde env.example
-        if (!file_exists($env_file)) {
-            $env_example = $plugin_dir . 'env.example';
-            if (file_exists($env_example)) {
-                $example_content = file_get_contents($env_example);
-                if ($example_content !== false) {
-                    file_put_contents($env_file, $example_content);
-                    @chmod($env_file, 0600);
-                }
-            }
-        }
-        
-        // Si aún no existe, salir
+        // NO crear automáticamente el .env desde env.example
+        // Solo cargar si el archivo .env ya existe (creado manualmente por el usuario)
         if (!file_exists($env_file)) {
             self::$loaded = true;
             return;
@@ -71,6 +60,11 @@ class LLM_Trace_Cleaner_Env_Loader {
                 // Para tokens de GitHub, limpiar espacios y saltos de línea
                 if (strpos($key, 'GITHUB_TOKEN') !== false) {
                     $value = preg_replace('/\s+/', '', $value);
+                    
+                    // NO cargar tokens de ejemplo (que contengan "xxxxx" o sean muy cortos)
+                    if (strpos($value, 'xxxxx') !== false || strlen($value) < 20) {
+                        continue; // Saltar este token, es un ejemplo
+                    }
                 }
                 
                 // Definir constante si no existe
