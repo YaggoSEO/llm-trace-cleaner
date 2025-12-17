@@ -34,7 +34,33 @@ class LLM_Trace_Cleaner_GitHub_Updater {
         $this->github_repo = $github_repo;
         $this->github_branch = $github_branch;
         $this->plugin_slug = plugin_basename($plugin_file);
-        $this->github_token = $github_token;
+        
+        // Limpiar y validar el token
+        if (!empty($github_token)) {
+            $clean_token = trim(preg_replace('/\s+/', '', $github_token));
+            // Solo asignar si tiene un formato válido
+            if (!empty($clean_token) && (strpos($clean_token, 'ghp_') === 0 || strpos($clean_token, 'github_pat_') === 0)) {
+                $this->github_token = $clean_token;
+            } else {
+                // Token inválido, no usar para repos públicos
+                $this->github_token = null;
+            }
+        } else {
+            $this->github_token = null;
+        }
+        
+        // #region agent log
+        $init_log = array(
+            'github_user' => $this->github_user,
+            'github_repo' => $this->github_repo,
+            'github_branch' => $this->github_branch,
+            'has_token' => !empty($this->github_token),
+            'token_length' => !empty($this->github_token) ? strlen($this->github_token) : 0,
+            'token_prefix' => !empty($this->github_token) ? substr($this->github_token, 0, 10) : 'none',
+            'original_token_empty' => empty($github_token)
+        );
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A,B,C', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'Updater constructor', 'data' => $init_log, 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
         
         // Hooks de WordPress para actualizaciones
         add_filter('pre_set_site_transient_update_plugins', array($this, 'check_for_updates'), 10, 1);
@@ -206,23 +232,46 @@ class LLM_Trace_Cleaner_GitHub_Updater {
             'Accept' => 'application/vnd.github.v3.raw'
         );
         
-        // Añadir token si está disponible
+        // Añadir token si está disponible y es válido
+        // Para repos públicos, no es necesario el token
         if (!empty($this->github_token)) {
             $clean_token = trim(preg_replace('/\s+/', '', $this->github_token));
             
-            if (strpos($clean_token, 'ghp_') === 0) {
-                $headers['Authorization'] = 'token ' . $clean_token;
-            } elseif (strpos($clean_token, 'github_pat_') === 0) {
-                $headers['Authorization'] = 'Bearer ' . $clean_token;
-            } else {
-                $headers['Authorization'] = 'token ' . $clean_token;
+            // Solo usar el token si tiene un formato válido
+            if (!empty($clean_token) && (strpos($clean_token, 'ghp_') === 0 || strpos($clean_token, 'github_pat_') === 0)) {
+                if (strpos($clean_token, 'ghp_') === 0) {
+                    $headers['Authorization'] = 'token ' . $clean_token;
+                } elseif (strpos($clean_token, 'github_pat_') === 0) {
+                    $headers['Authorization'] = 'Bearer ' . $clean_token;
+                }
             }
         }
+        
+        // #region agent log
+        $log_data = array(
+            'url' => $url,
+            'has_token' => !empty($this->github_token),
+            'token_length' => !empty($this->github_token) ? strlen($this->github_token) : 0,
+            'token_prefix' => !empty($this->github_token) ? substr(trim($this->github_token), 0, 10) : 'none',
+            'headers_count' => count($headers),
+            'has_auth_header' => isset($headers['Authorization'])
+        );
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A,B,C', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'Before API request', 'data' => $log_data, 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
         
         $response = wp_remote_get($url, array(
             'headers' => $headers,
             'timeout' => 15
         ));
+        
+        // #region agent log
+        $response_log = array(
+            'is_wp_error' => is_wp_error($response),
+            'response_code' => !is_wp_error($response) ? wp_remote_retrieve_response_code($response) : 'N/A',
+            'error_message' => is_wp_error($response) ? $response->get_error_message() : 'none'
+        );
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A,B,C', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'After API request', 'data' => $response_log, 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
         
         if (is_wp_error($response)) {
             $this->log_error('Error al verificar actualizaciones: ' . $response->get_error_message());
@@ -230,6 +279,14 @@ class LLM_Trace_Cleaner_GitHub_Updater {
         }
         
         $response_code = wp_remote_retrieve_response_code($response);
+        
+        // #region agent log
+        $error_log = array(
+            'response_code' => $response_code,
+            'response_body_preview' => !is_wp_error($response) ? substr(wp_remote_retrieve_body($response), 0, 200) : 'N/A'
+        );
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A,B,C', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'Response code check', 'data' => $error_log, 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
         
         if ($response_code !== 200) {
             $this->log_error('Error al verificar actualizaciones. Código HTTP: ' . $response_code);
