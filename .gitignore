@@ -56,6 +56,8 @@ yarn.lock
 .env
 .env.local
 .env.*.local
+.env.example
+.appscript.py
 
 # Archivos de backup
 *.bak
@@ -70,4 +72,4 @@ yarn.lock
 .Trashes
 ehthumbs.db
 Thumbs.db
-
+initialize-headers.gs
