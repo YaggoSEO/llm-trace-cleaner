@@ -1553,6 +1553,28 @@ class LLM_Trace_Cleaner_Admin {
                 <!-- Configuración -->
                 <div class="llm-trace-cleaner-section">
                     <h2><?php echo esc_html__('Configuración', 'llm-trace-cleaner'); ?></h2>
+                    
+                    <!-- Bloque explicativo del plugin -->
+                    <div style="background: #f0f6fc; border-left: 4px solid #2271b1; padding: 15px 20px; margin: 20px 0; border-radius: 4px;">
+                        <h3 style="margin-top: 0; color: #2271b1;"><?php echo esc_html__('¿Cómo funciona LLM Trace Cleaner?', 'llm-trace-cleaner'); ?></h3>
+                        <p style="margin-bottom: 10px;">
+                            <?php echo esc_html__('LLM Trace Cleaner elimina automáticamente los atributos de rastreo que las herramientas de inteligencia artificial (ChatGPT, Claude, Gemini, etc.) agregan al contenido cuando se copia y pega desde ellas.', 'llm-trace-cleaner'); ?>
+                        </p>
+                        <p style="margin-bottom: 10px;">
+                            <?php echo esc_html__('El plugin detecta y elimina:', 'llm-trace-cleaner'); ?>
+                        </p>
+                        <ul style="margin-left: 20px; margin-bottom: 10px;">
+                            <li><?php echo esc_html__('Atributos de rastreo HTML (data-llm, data-start, data-end, etc.)', 'llm-trace-cleaner'); ?></li>
+                            <li><?php echo esc_html__('Caracteres Unicode invisibles que pueden afectar el SEO', 'llm-trace-cleaner'); ?></li>
+                            <li><?php echo esc_html__('Referencias de contenido LLM (ContentReference)', 'llm-trace-cleaner'); ?></li>
+                            <li><?php echo esc_html__('Parámetros UTM de enlaces agregados por LLMs', 'llm-trace-cleaner'); ?></li>
+                        </ul>
+                        <p style="margin-bottom: 0;">
+                            <strong><?php echo esc_html__('Beneficios:', 'llm-trace-cleaner'); ?></strong> 
+                            <?php echo esc_html__('Contenido más limpio, mejor rendimiento, HTML optimizado y sin rastros de herramientas LLM.', 'llm-trace-cleaner'); ?>
+                        </p>
+                    </div>
+                    
                     <form method="post" action="">
                         <?php wp_nonce_field('llm_trace_cleaner_settings'); ?>
                         <table class="form-table">
@@ -1756,6 +1778,72 @@ class LLM_Trace_Cleaner_Admin {
                                    value="<?php echo esc_attr__('Guardar configuración', 'llm-trace-cleaner'); ?>">
                         </p>
                     </form>
+                    
+                    <!-- Bloque de autor y redes sociales -->
+                    <div style="background: #fff; border: 1px solid #ddd; padding: 20px; margin-top: 30px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 5px 0; color: #23282d;">
+                                    <?php echo esc_html__('Desarrollado por', 'llm-trace-cleaner'); ?> 
+                                    <strong>Yago Vázquez Gómez</strong>
+                                </h3>
+                                <p style="margin: 0; color: #646970;">
+                                    <a href="https://yaggoseo.com/" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: #2271b1;">
+                                        🌐 yaggoseo.com
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0 0 10px 0; color: #646970;">
+                                <strong><?php echo esc_html__('Sígueme en:', 'llm-trace-cleaner'); ?></strong>
+                            </p>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <a href="https://www.youtube.com/@YaggoSEO" target="_blank" rel="noopener noreferrer" 
+                                   style="display: inline-flex; align-items: center; padding: 8px 12px; background: #ff0000; color: #fff; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                                   onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                    <span class="dashicons dashicons-video-alt3" style="margin-right: 5px; font-size: 16px; width: 16px; height: 16px;"></span>
+                                    YouTube
+                                </a>
+                                <a href="https://www.reddit.com/user/YaggoSEO" target="_blank" rel="noopener noreferrer" 
+                                   style="display: inline-flex; align-items: center; padding: 8px 12px; background: #ff4500; color: #fff; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                                   onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                    <span style="margin-right: 5px; font-size: 16px;">🔴</span>
+                                    Reddit
+                                </a>
+                                <a href="https://www.instagram.com/YaggoSEO/" target="_blank" rel="noopener noreferrer" 
+                                   style="display: inline-flex; align-items: center; padding: 8px 12px; background: linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%); color: #fff; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                                   onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                    <span class="dashicons dashicons-camera" style="margin-right: 5px; font-size: 16px; width: 16px; height: 16px;"></span>
+                                    Instagram
+                                </a>
+                                <a href="https://www.linkedin.com/in/iago-vazquez-gomez" target="_blank" rel="noopener noreferrer" 
+                                   style="display: inline-flex; align-items: center; padding: 8px 12px; background: #0077b5; color: #fff; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                                   onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                    <span class="dashicons dashicons-groups" style="margin-right: 5px; font-size: 16px; width: 16px; height: 16px;"></span>
+                                    LinkedIn
+                                </a>
+                                <a href="https://x.com/YaggoSEO" target="_blank" rel="noopener noreferrer" 
+                                   style="display: inline-flex; align-items: center; padding: 8px 12px; background: #000; color: #fff; text-decoration: none; border-radius: 4px; font-size: 13px; transition: opacity 0.2s;"
+                                   onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+                                    <span style="margin-right: 5px; font-size: 16px;">𝕏</span>
+                                    X (Twitter)
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div style="border-top: 1px solid #ddd; padding-top: 15px; margin-top: 15px;">
+                            <p style="margin: 0; color: #646970; font-size: 13px;">
+                                <?php echo esc_html__('¿Te ha sido útil este plugin?', 'llm-trace-cleaner'); ?> 
+                                <a href="https://es.trustpilot.com/review/yaggoseo.com" target="_blank" rel="noopener noreferrer" 
+                                   style="color: #2271b1; text-decoration: none; font-weight: 600;">
+                                    <?php echo esc_html__('¡Déjame una reseña en Trustpilot!', 'llm-trace-cleaner'); ?>
+                                </a>
+                                <span style="color: #ffb900; margin-left: 3px;">⭐</span>
+                            </p>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Limpieza manual -->
