@@ -621,11 +621,15 @@ class LLM_Trace_Cleaner_Admin {
         // Preparar estadísticas seguras y estructuradas
         $stats = isset($process_state['stats']) && is_array($process_state['stats']) ? $process_state['stats'] : array();
         
-        // Separar atributos de caracteres Unicode
+        // Separar atributos de caracteres Unicode, content references y UTM parameters
         $attributes_found = array();
         $unicode_found = array();
+        $content_references_found = array();
+        $utm_parameters_found = array();
         $attributes_count = 0;
         $unicode_count = 0;
+        $content_references_count = 0;
+        $utm_parameters_count = 0;
         $other_stats = array();
         
         foreach ($stats as $k => $v) {
@@ -643,6 +647,16 @@ class LLM_Trace_Cleaner_Admin {
                     $unicode_found[$key] = $val;
                     $unicode_count += $val;
                 }
+                // Detectar content references
+                elseif (strpos($key, 'content_reference') === 0 || strpos($key, 'contentreference') === 0) {
+                    $content_references_found[$key] = $val;
+                    $content_references_count += $val;
+                }
+                // Detectar UTM parameters
+                elseif (strpos($key, 'utm_parameters') === 0 || strpos($key, 'utm') === 0) {
+                    $utm_parameters_found[$key] = $val;
+                    $utm_parameters_count += $val;
+                }
                 // Otros tipos
                 else {
                     $other_stats[$key] = $val;
@@ -650,39 +664,84 @@ class LLM_Trace_Cleaner_Admin {
             }
         }
         
-        // Lista de tipos de atributos encontrados (para análisis)
+        // Lista de tipos encontrados (para análisis)
         $attribute_types = array_keys($attributes_found);
         $unicode_types = array_keys($unicode_found);
+        $content_reference_types = array_keys($content_references_found);
+        $utm_parameter_types = array_keys($utm_parameters_found);
         
-        // Preparar payload con estructura detallada
+        // Calcular ratios y porcentajes (anónimos)
+        $total = absint($process_state['total']);
+        $processed = absint($process_state['processed']);
+        $modified = absint($process_state['modified']);
+        
+        $modification_ratio = $processed > 0 ? round(($modified / $processed) * 100, 2) : 0;
+        $total_items_removed = $attributes_count + $unicode_count + $content_references_count + $utm_parameters_count;
+        $avg_items_per_modified_post = $modified > 0 ? round($total_items_removed / $modified, 2) : 0;
+        
+        // Obtener opciones de limpieza usadas (anónimas)
+        $clean_options_used = array(
+            'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false) ? 1 : 0,
+            'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false) ? 1 : 0,
+            'clean_content_references' => get_option('llm_trace_cleaner_clean_content_references', true) ? 1 : 0,
+            'clean_utm_parameters' => get_option('llm_trace_cleaner_clean_utm_parameters', true) ? 1 : 0,
+        );
+        
+        // Calcular tiempo de procesamiento si está disponible
+        $processing_time = 0;
+        if (isset($process_state['started'])) {
+            $start_time = strtotime($process_state['started']);
+            $end_time = time();
+            $processing_time = $end_time - $start_time; // En segundos
+        }
+        
+        // Preparar payload con estructura detallada y enriquecida
         $payload = array(
             'install_id'          => $install_id,
             'plugin_version'      => defined('LLM_TRACE_CLEANER_VERSION') ? LLM_TRACE_CLEANER_VERSION : '',
             'wp_version'          => get_bloginfo('version'),
             'php_version'         => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
-            'total'               => absint($process_state['total']),
-            'processed'           => absint($process_state['processed']),
-            'modified'            => absint($process_state['modified']),
+            'total'               => $total,
+            'processed'           => $processed,
+            'modified'            => $modified,
             'timestamp'           => current_time('mysql'),
             'server_timestamp'    => current_time('mysql', true), // Timestamp del servidor (UTC)
             
             // Estadísticas agregadas
             'total_attributes_removed'    => $attributes_count,
             'total_unicode_removed'       => $unicode_count,
+            'total_content_references_removed' => $content_references_count,
+            'total_utm_parameters_removed' => $utm_parameters_count,
+            'total_items_removed'        => $total_items_removed,
             'unique_attribute_types'      => count($attribute_types),
             'unique_unicode_types'        => count($unicode_types),
+            'unique_content_reference_types' => count($content_reference_types),
+            'unique_utm_parameter_types' => count($utm_parameter_types),
             
             // Tipos específicos encontrados (listas para análisis)
             'attribute_types_found'       => $attribute_types,
             'unicode_types_found'          => $unicode_types,
+            'content_reference_types_found' => $content_reference_types,
+            'utm_parameter_types_found'    => $utm_parameter_types,
             
             // Contadores detallados por tipo (para medias)
             'attributes_detail'           => $attributes_found,
             'unicode_detail'              => $unicode_found,
+            'content_references_detail'   => $content_references_found,
+            'utm_parameters_detail'       => $utm_parameters_found,
             'other_stats'                 => $other_stats,
             
+            // Métricas de rendimiento y ratios (anónimas)
+            'modification_ratio'          => $modification_ratio, // Porcentaje de posts modificados
+            'avg_items_per_modified_post' => $avg_items_per_modified_post,
+            'processing_time_seconds'     => $processing_time,
+            'posts_per_second'            => $processing_time > 0 && $processed > 0 ? round($processed / $processing_time, 2) : 0,
+            
+            // Opciones de limpieza usadas (anónimas)
+            'clean_options_used'          => $clean_options_used,
+            
             // Stats completo (compatibilidad hacia atrás)
-            'stats'                      => array_merge($attributes_found, $unicode_found, $other_stats),
+            'stats'                      => array_merge($attributes_found, $unicode_found, $content_references_found, $utm_parameters_found, $other_stats),
         );
         
         // Enviar de forma asíncrona (no bloqueante)

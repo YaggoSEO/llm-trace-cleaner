@@ -325,6 +325,15 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.6.0
+- **Telemetría mejorada para estudios e investigación**:
+  - Nuevos datos capturados: Content References y UTM Parameters (totales, tipos únicos y detalle por tipo)
+  - Métricas de rendimiento: tiempo de procesamiento, posts por segundo, ratio de modificación
+  - Métricas agregadas: total de items removidos, promedio de items por post modificado
+  - Opciones de limpieza usadas: registro de qué opciones estaban activas durante la limpieza
+  - Google Sheets mejorado: 35 columnas de datos enriquecidos para análisis estadístico
+  - Todos los datos siguen siendo completamente anónimos (sin IDs de posts, títulos o contenido)
+
 ### 1.5.0
 - **Mejoras en el sistema de actualizaciones**: 
   - Corrección del error 401 para repositorios públicos (no se usa token inválido)
