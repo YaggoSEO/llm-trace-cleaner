@@ -1563,7 +1563,7 @@ class LLM_Trace_Cleaner_Admin {
                                     <strong>Yago Vázquez Gómez (YaggoSEO)</strong>
                                 </h3>
                                 <p style="margin: 0; color: #646970;">
-                                    <a href="https://yaggoseo.com/" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: #2271b1;">
+                                    <a href="https://yaggoseo.com/?utm_source=plugin&utm_medium=llm_trace_cleaner&utm_campaign=plugin_llm_tracker" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: #2271b1;">
                                         🌐 yaggoseo.com
                                     </a>
                                 </p>
@@ -1635,9 +1635,13 @@ class LLM_Trace_Cleaner_Admin {
                             <li><?php echo esc_html__('Referencias de contenido LLM (ContentReference)', 'llm-trace-cleaner'); ?></li>
                             <li><?php echo esc_html__('Parámetros UTM de enlaces agregados por LLMs', 'llm-trace-cleaner'); ?></li>
                         </ul>
-                        <p style="margin-bottom: 0;">
+                        <p style="margin-bottom: 10px;">
                             <strong><?php echo esc_html__('Beneficios:', 'llm-trace-cleaner'); ?></strong> 
                             <?php echo esc_html__('Contenido más limpio, mejor rendimiento, HTML optimizado y sin rastros de herramientas LLM.', 'llm-trace-cleaner'); ?>
+                        </p>
+                        <p style="margin-bottom: 0; padding-top: 10px; border-top: 1px solid #c3c4c7;">
+                            <strong><?php echo esc_html__('Consejos:', 'llm-trace-cleaner'); ?></strong> 
+                            <?php echo esc_html__('Recuerda revisar tus posts o páginas después de la limpieza, los caracteres Unicode de control pueden causar fallos en el diseño y estilos de los textos.', 'llm-trace-cleaner'); ?>
                         </p>
                     </div>
                     
@@ -1834,6 +1838,25 @@ class LLM_Trace_Cleaner_Admin {
                                     <p class="description">
                                         <?php echo esc_html__('No se envían URLs, títulos, IDs de post ni ningún dato personal o sensible. Agradecemos tu colaboración en estos estudios e investigaciones.', 'llm-trace-cleaner'); ?>
                                     </p>
+                                    <div style="background: #fff3cd; border-left: 4px solid #ffb900; padding: 12px 15px; margin-top: 10px; border-radius: 4px;">
+                                        <p style="margin: 0 0 8px 0; color: #856404;">
+                                            <strong><?php echo esc_html__('¿Por qué es importante mantener esta opción activada?', 'llm-trace-cleaner'); ?></strong>
+                                        </p>
+                                        <ul style="margin: 0 0 0 20px; color: #856404; padding: 0;">
+                                            <li style="margin-bottom: 5px;">
+                                                <?php echo esc_html__('Mejora continua del plugin: Los datos anónimos nos ayudan a identificar qué tipos de rastros LLM son más comunes y priorizar mejoras.', 'llm-trace-cleaner'); ?>
+                                            </li>
+                                            <li style="margin-bottom: 5px;">
+                                                <?php echo esc_html__('Investigación sobre LLMs: Contribuyes a estudios científicos sobre cómo funcionan las herramientas de IA y qué rastros dejan en el contenido.', 'llm-trace-cleaner'); ?>
+                                            </li>
+                                            <li style="margin-bottom: 5px;">
+                                                <?php echo esc_html__('Detección de nuevas amenazas: Ayuda a identificar nuevos atributos y patrones que las herramientas LLM puedan agregar en el futuro.', 'llm-trace-cleaner'); ?>
+                                            </li>
+                                            <li style="margin-bottom: 0;">
+                                                <?php echo esc_html__('Comunidad más fuerte: Tu contribución anónima beneficia a toda la comunidad de usuarios del plugin.', 'llm-trace-cleaner'); ?>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </td>
                             </tr>
                         </table>
