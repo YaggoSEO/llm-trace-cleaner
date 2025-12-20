@@ -465,9 +465,8 @@ class LLM_Trace_Cleaner_GitHub_Updater {
      * Log de verificación de actualizaciones
      */
     private function log_update_check($local_version, $remote_version) {
-        $logs = get_option('llm_trace_cleaner_updater_logs', array());
-        
-        $logs[] = array(
+        // Guardar solo el último log en lugar de un historial
+        $log = array(
             'datetime' => current_time('mysql'),
             'local_version' => $local_version,
             'remote_version' => $remote_version ?: 'No disponible',
@@ -475,31 +474,20 @@ class LLM_Trace_Cleaner_GitHub_Updater {
             'has_token' => !empty($this->github_token)
         );
         
-        // Mantener solo los últimos 20 logs
-        if (count($logs) > 20) {
-            $logs = array_slice($logs, -20);
-        }
-        
-        update_option('llm_trace_cleaner_updater_logs', $logs);
+        update_option('llm_trace_cleaner_updater_logs', $log);
     }
     
     /**
      * Log de errores
      */
     private function log_error($message) {
-        $logs = get_option('llm_trace_cleaner_updater_errors', array());
-        
-        $logs[] = array(
+        // Guardar solo el último error en lugar de un historial
+        $log = array(
             'datetime' => current_time('mysql'),
             'message' => $message
         );
         
-        // Mantener solo los últimos 10 errores
-        if (count($logs) > 10) {
-            $logs = array_slice($logs, -10);
-        }
-        
-        update_option('llm_trace_cleaner_updater_errors', $logs);
+        update_option('llm_trace_cleaner_updater_errors', $log);
     }
     
     /**

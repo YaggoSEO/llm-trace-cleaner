@@ -1385,27 +1385,6 @@ class LLM_Trace_Cleaner_Admin {
                         }
                     }
                     
-                    // Procesar limpieza de errores del updater
-                    if (isset($_POST['llm_trace_cleaner_clear_updater_errors']) && check_admin_referer('llm_trace_cleaner_clear_updater_errors')) {
-                        delete_option('llm_trace_cleaner_updater_errors');
-                        echo '<div class="notice notice-success"><p>' . 
-                             esc_html__('Errores del updater eliminados.', 'llm-trace-cleaner') . 
-                             '</p></div>';
-                    }
-                    
-                    // Procesar limpieza del historial de verificaciones
-                    if (isset($_POST['llm_trace_cleaner_clear_updater_logs']) && check_admin_referer('llm_trace_cleaner_clear_updater_logs')) {
-                        delete_option('llm_trace_cleaner_updater_logs');
-                        wp_redirect(add_query_arg('llm_trace_cleaner_updater_logs_cleared', '1', admin_url('admin.php?page=llm-trace-cleaner&tab=debug')));
-                        exit;
-                    }
-                    
-                    // Mostrar mensaje de éxito después del redirect
-                    if (isset($_GET['llm_trace_cleaner_updater_logs_cleared'])) {
-                        echo '<div class="notice notice-success is-dismissible"><p>' . 
-                             esc_html__('Historial de verificaciones eliminado.', 'llm-trace-cleaner') . 
-                             '</p></div>';
-                    }
                     
                     // Obtener información del updater
                     $local_version = defined('LLM_TRACE_CLEANER_VERSION') ? LLM_TRACE_CLEANER_VERSION : 'N/A';
@@ -1504,91 +1483,50 @@ class LLM_Trace_Cleaner_Admin {
                         <?php endif; ?>
                     </div>
                     
-                    <!-- Logs del Updater -->
+                    <!-- Estado del Updater -->
                     <?php
-                    $updater_logs = get_option('llm_trace_cleaner_updater_logs', array());
-                    $updater_errors = get_option('llm_trace_cleaner_updater_errors', array());
+                    $updater_log = get_option('llm_trace_cleaner_updater_logs', false);
+                    $updater_error = get_option('llm_trace_cleaner_updater_errors', false);
                     ?>
                     
-                    <?php if (!empty($updater_errors)): ?>
-                        <h3 style="margin-top: 30px; color: #dc3232;"><?php echo esc_html__('Errores del Updater', 'llm-trace-cleaner'); ?></h3>
-                        <div style="margin-bottom: 15px;">
-                            <form method="post" action="" style="display: inline-block;">
-                                <?php wp_nonce_field('llm_trace_cleaner_clear_updater_errors'); ?>
-                                <input type="submit" 
-                                       name="llm_trace_cleaner_clear_updater_errors" 
-                                       class="button button-secondary" 
-                                       value="<?php echo esc_attr__('Limpiar errores del updater', 'llm-trace-cleaner'); ?>"
-                                       onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todos los errores del updater?', 'llm-trace-cleaner')); ?>');">
-                            </form>
+                    <?php if ($updater_error && is_array($updater_error)): ?>
+                        <h3 style="margin-top: 30px; color: #dc3232;"><?php echo esc_html__('Último Error del Updater', 'llm-trace-cleaner'); ?></h3>
+                        <div class="notice notice-error" style="margin-top: 10px;">
+                            <p>
+                                <strong><?php echo esc_html__('Fecha/Hora:', 'llm-trace-cleaner'); ?></strong> 
+                                <?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $updater_error['datetime'])); ?>
+                            </p>
+                            <p>
+                                <strong><?php echo esc_html__('Error:', 'llm-trace-cleaner'); ?></strong> 
+                                <code style="color: #dc3232;"><?php echo esc_html($updater_error['message']); ?></code>
+                            </p>
                         </div>
-                        <table class="wp-list-table widefat fixed striped">
-                            <thead>
-                                <tr>
-                                    <th style="width: 150px;"><?php echo esc_html__('Fecha/Hora', 'llm-trace-cleaner'); ?></th>
-                                    <th><?php echo esc_html__('Error', 'llm-trace-cleaner'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach (array_reverse($updater_errors) as $log): ?>
-                                    <tr>
-                                        <td><?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $log['datetime'])); ?></td>
-                                        <td><code style="color: #dc3232;"><?php echo esc_html($log['message']); ?></code></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
                     <?php endif; ?>
                     
-                    <?php if (!empty($updater_logs)): ?>
-                        <h3 style="margin-top: 30px;"><?php echo esc_html__('Historial de Verificaciones', 'llm-trace-cleaner'); ?></h3>
-                        <div style="margin-bottom: 15px;">
-                            <form method="post" action="" style="display: inline-block;" id="llm-trace-cleaner-clear-updater-logs-form">
-                                <?php wp_nonce_field('llm_trace_cleaner_clear_updater_logs'); ?>
-                                <input type="submit" 
-                                       name="llm_trace_cleaner_clear_updater_logs" 
-                                       class="button button-secondary" 
-                                       value="<?php echo esc_attr__('Limpiar historial de verificaciones', 'llm-trace-cleaner'); ?>"
-                                       id="llm-trace-cleaner-clear-updater-logs-btn">
-                            </form>
-                            <script type="text/javascript">
-                            jQuery(document).ready(function($) {
-                                $('#llm-trace-cleaner-clear-updater-logs-btn').on('click', function(e) {
-                                    if (!confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todo el historial de verificaciones?', 'llm-trace-cleaner')); ?>')) {
-                                        e.preventDefault();
-                                        return false;
-                                    }
-                                    $(this).prop('disabled', true).val('<?php echo esc_js(__('Eliminando...', 'llm-trace-cleaner')); ?>');
-                                });
-                            });
-                            </script>
+                    <?php if ($updater_log && is_array($updater_log)): ?>
+                        <h3 style="margin-top: 30px;"><?php echo esc_html__('Última Verificación', 'llm-trace-cleaner'); ?></h3>
+                        <div class="notice notice-info" style="margin-top: 10px;">
+                            <p>
+                                <strong><?php echo esc_html__('Fecha/Hora:', 'llm-trace-cleaner'); ?></strong> 
+                                <?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $updater_log['datetime'])); ?>
+                            </p>
+                            <p>
+                                <strong><?php echo esc_html__('Versión Local:', 'llm-trace-cleaner'); ?></strong> 
+                                <code><?php echo esc_html($updater_log['local_version']); ?></code>
+                            </p>
+                            <p>
+                                <strong><?php echo esc_html__('Versión Remota:', 'llm-trace-cleaner'); ?></strong> 
+                                <code><?php echo esc_html($updater_log['remote_version']); ?></code>
+                            </p>
+                            <p>
+                                <strong><?php echo esc_html__('Estado:', 'llm-trace-cleaner'); ?></strong> 
+                                <?php if ($updater_log['update_available']): ?>
+                                    <span style="color: #0073aa;">✨ <?php echo esc_html__('Actualización disponible', 'llm-trace-cleaner'); ?></span>
+                                <?php else: ?>
+                                    <span style="color: #46b450;">✅ <?php echo esc_html__('Actualizado', 'llm-trace-cleaner'); ?></span>
+                                <?php endif; ?>
+                            </p>
                         </div>
-                        <table class="wp-list-table widefat fixed striped">
-                            <thead>
-                                <tr>
-                                    <th style="width: 150px;"><?php echo esc_html__('Fecha/Hora', 'llm-trace-cleaner'); ?></th>
-                                    <th style="width: 100px;"><?php echo esc_html__('Local', 'llm-trace-cleaner'); ?></th>
-                                    <th style="width: 100px;"><?php echo esc_html__('Remota', 'llm-trace-cleaner'); ?></th>
-                                    <th><?php echo esc_html__('Estado', 'llm-trace-cleaner'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach (array_reverse($updater_logs) as $log): ?>
-                                    <tr>
-                                        <td><?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $log['datetime'])); ?></td>
-                                        <td><code><?php echo esc_html($log['local_version']); ?></code></td>
-                                        <td><code><?php echo esc_html($log['remote_version']); ?></code></td>
-                                        <td>
-                                            <?php if ($log['update_available']): ?>
-                                                <span style="color: #0073aa;">✨ <?php echo esc_html__('Actualización disponible', 'llm-trace-cleaner'); ?></span>
-                                            <?php else: ?>
-                                                <span style="color: #46b450;">✅ <?php echo esc_html__('Actualizado', 'llm-trace-cleaner'); ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
                     <?php endif; ?>
                     
                     <div class="notice notice-info" style="margin-top: 20px;">
@@ -2407,11 +2345,91 @@ class LLM_Trace_Cleaner_Admin {
                     }
                     
                     html += '</ul>';
+                    
+                    // Añadir tabla de posts con datos encontrados
+                    if (data.posts_with_data && data.posts_with_data.length > 0) {
+                        html += '<h4 style="margin-top: 20px;"><?php echo esc_js(__('Posts/Páginas con datos encontrados:', 'llm-trace-cleaner')); ?></h4>';
+                        html += '<div style="margin-bottom: 10px;">';
+                        html += '<button type="button" id="llm-trace-cleaner-select-all-posts" class="button button-secondary" style="margin-right: 10px;"><?php echo esc_js(__('Seleccionar todo', 'llm-trace-cleaner')); ?></button>';
+                        html += '<button type="button" id="llm-trace-cleaner-deselect-all-posts" class="button button-secondary"><?php echo esc_js(__('Deseleccionar todo', 'llm-trace-cleaner')); ?></button>';
+                        html += '</div>';
+                        html += '<div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff;">';
+                        html += '<table class="wp-list-table widefat fixed striped" style="margin: 0;">';
+                        html += '<thead><tr>';
+                        html += '<th style="width: 30px;"><input type="checkbox" id="llm-trace-cleaner-select-all-posts-checkbox"></th>';
+                        html += '<th><?php echo esc_js(__('Título', 'llm-trace-cleaner')); ?></th>';
+                        html += '<th><?php echo esc_js(__('Elementos encontrados', 'llm-trace-cleaner')); ?></th>';
+                        html += '</tr></thead>';
+                        html += '<tbody>';
+                        
+                        for (var i = 0; i < data.posts_with_data.length; i++) {
+                            var post = data.posts_with_data[i];
+                            var elements = [];
+                            
+                            // Formatear atributos
+                            if (post.attributes_found && Object.keys(post.attributes_found).length > 0) {
+                                for (var attr in post.attributes_found) {
+                                    elements.push(attr + ': ' + post.attributes_found[attr]);
+                                }
+                            }
+                            
+                            // Formatear Unicode
+                            if (post.unicode_found && Object.keys(post.unicode_found).length > 0) {
+                                for (var unicode in post.unicode_found) {
+                                    elements.push('unicode: ' + unicode + ': ' + post.unicode_found[unicode]);
+                                }
+                            }
+                            
+                            // Formatear referencias de contenido
+                            if (post.content_references_found && Object.keys(post.content_references_found).length > 0) {
+                                for (var ref in post.content_references_found) {
+                                    elements.push('ContentReference: ' + post.content_references_found[ref]);
+                                }
+                            }
+                            
+                            // Formatear parámetros UTM
+                            if (post.utm_urls_found && post.utm_urls_found.length > 0) {
+                                elements.push('UTM Parameters: ' + post.utm_urls_found.length + ' URL(s)');
+                                // Añadir las URLs como lista
+                                var utmUrls = post.utm_urls_found.slice(0, 3).map(function(url) {
+                                    return url.length > 60 ? url.substring(0, 60) + '...' : url;
+                                });
+                                if (post.utm_urls_found.length > 3) {
+                                    utmUrls.push('... y ' + (post.utm_urls_found.length - 3) + ' más');
+                                }
+                                elements.push('URLs: ' + utmUrls.join(', '));
+                            }
+                            
+                            html += '<tr>';
+                            html += '<td><input type="checkbox" class="llm-trace-cleaner-post-checkbox" data-post-id="' + post.post_id + '" checked></td>';
+                            html += '<td><a href="' + post.post_url + '" target="_blank">' + post.post_title + '</a></td>';
+                            html += '<td><small>' + elements.join('; ') + '</small></td>';
+                            html += '</tr>';
+                        }
+                        
+                        html += '</tbody></table>';
+                        html += '</div>';
+                    }
                 } else {
                     html += '<p style="color: green;"><strong><?php echo esc_js(__('No se encontraron elementos para limpiar.', 'llm-trace-cleaner')); ?></strong></p>';
                 }
                 
                 $('#llm-trace-cleaner-analysis-content').html(html);
+                
+                // Manejar selección de todos los posts
+                $('#llm-trace-cleaner-select-all-posts').on('click', function() {
+                    $('.llm-trace-cleaner-post-checkbox').prop('checked', true);
+                    $('#llm-trace-cleaner-select-all-posts-checkbox').prop('checked', true);
+                });
+                
+                $('#llm-trace-cleaner-deselect-all-posts').on('click', function() {
+                    $('.llm-trace-cleaner-post-checkbox').prop('checked', false);
+                    $('#llm-trace-cleaner-select-all-posts-checkbox').prop('checked', false);
+                });
+                
+                $('#llm-trace-cleaner-select-all-posts-checkbox').on('change', function() {
+                    $('.llm-trace-cleaner-post-checkbox').prop('checked', $(this).is(':checked'));
+                });
                 
                 // Mostrar opciones de selección si hay elementos para limpiar
                 if (data.has_attributes || data.has_unicode || data.has_content_references || data.has_utm_parameters) {
@@ -2773,6 +2791,7 @@ class LLM_Trace_Cleaner_Admin {
         $unicode_found = array();
         $content_references_found = array();
         $utm_parameters_found = array();
+        $posts_with_data = array(); // Array para posts con datos encontrados
         
         // Analizar TODOS los posts (sin limitación)
         $total_posts = count($all_post_ids);
@@ -2784,6 +2803,27 @@ class LLM_Trace_Cleaner_Admin {
             }
             
             $analysis = $cleaner->analyze_content($post->post_content);
+            
+            // Verificar si este post tiene datos encontrados
+            $has_data = !empty($analysis['attributes_found']) || 
+                       !empty($analysis['unicode_found']) || 
+                       !empty($analysis['content_references_found']) || 
+                       !empty($analysis['utm_parameters_found']);
+            
+            if ($has_data) {
+                // Guardar información detallada del post
+                $post_data = array(
+                    'post_id' => $post_id,
+                    'post_title' => $post->post_title,
+                    'post_url' => get_permalink($post_id),
+                    'attributes_found' => $analysis['attributes_found'],
+                    'unicode_found' => $analysis['unicode_found'],
+                    'content_references_found' => isset($analysis['content_references_found']) ? $analysis['content_references_found'] : array(),
+                    'utm_parameters_found' => isset($analysis['utm_parameters_found']) ? $analysis['utm_parameters_found'] : array(),
+                    'utm_urls_found' => isset($analysis['utm_urls_found']) ? $analysis['utm_urls_found'] : array()
+                );
+                $posts_with_data[] = $post_data;
+            }
             
             // Acumular resultados
             foreach ($analysis['attributes_found'] as $attr => $count) {
@@ -2839,7 +2879,8 @@ class LLM_Trace_Cleaner_Admin {
             'has_attributes' => $total_attributes > 0,
             'has_unicode' => $total_unicode > 0,
             'has_content_references' => $total_content_references > 0,
-            'has_utm_parameters' => $total_utm_parameters > 0
+            'has_utm_parameters' => $total_utm_parameters > 0,
+            'posts_with_data' => $posts_with_data // Posts con datos encontrados
         ));
     }
 }

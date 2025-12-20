@@ -52,10 +52,12 @@ class LLM_Trace_Cleaner_Logger {
         if (empty($stats) && $force_log) {
             $detected_attrs = $this->detect_removed_attributes($original_content, $cleaned_content);
             $detected_unicode = $this->detect_invisible_unicode_removed($original_content, $cleaned_content);
+            $detected_content_refs = $this->detect_removed_content_references($original_content, $cleaned_content);
+            $detected_utm = $this->detect_removed_utm_parameters($original_content, $cleaned_content);
 
-            // Combinar ambos conjuntos
+            // Combinar todos los conjuntos
             $combined = array();
-            foreach (array($detected_attrs, $detected_unicode) as $arr) {
+            foreach (array($detected_attrs, $detected_unicode, $detected_content_refs, $detected_utm) as $arr) {
                 foreach ($arr as $k => $v) {
                     if (!isset($combined[$k])) {
                         $combined[$k] = 0;
@@ -378,6 +380,111 @@ class LLM_Trace_Cleaner_Logger {
                 $detected['unicode: ' . $label] = $c1 - $c2;
             }
         }
+        return $detected;
+    }
+
+    /**
+     * Detectar referencias de contenido (ContentReference) eliminadas.
+     *
+     * @param string $original_content Contenido original
+     * @param string $cleaned_content Contenido limpio
+     * @return array Array con las referencias detectadas y su cantidad
+     */
+    private function detect_removed_content_references($original_content, $cleaned_content) {
+        if (empty($original_content) || empty($cleaned_content)) {
+            return array();
+        }
+        
+        $detected = array();
+        $content_ref_patterns = array(
+            '/ContentReference\s*\[\s*oaicite\s*[:=]\s*\d+\s*\]\s*\(\s*index\s*=\s*\d+\s*\)/i',
+            '/ContentReference\s*\[\s*oaicite\s*[:=]\s*\d+\s*\]\s*\(\s*\)/i',
+            '/\[\s*oaicite\s*[:=]\s*\d+\s*\]/i',
+        );
+        
+        $total_original = 0;
+        $total_cleaned = 0;
+        
+        foreach ($content_ref_patterns as $pattern) {
+            preg_match_all($pattern, $original_content, $matches_original);
+            $count_original = count($matches_original[0]);
+            $total_original += $count_original;
+            
+            preg_match_all($pattern, $cleaned_content, $matches_cleaned);
+            $count_cleaned = count($matches_cleaned[0]);
+            $total_cleaned += $count_cleaned;
+        }
+        
+        if ($total_original > $total_cleaned) {
+            $removed_count = $total_original - $total_cleaned;
+            $detected['ContentReference'] = $removed_count;
+        }
+        
+        return $detected;
+    }
+
+    /**
+     * Detectar parámetros UTM eliminados comparando URLs en el contenido original y limpio.
+     *
+     * @param string $original_content Contenido original
+     * @param string $cleaned_content Contenido limpio
+     * @return array Array con las URLs con UTM detectadas y su cantidad
+     */
+    private function detect_removed_utm_parameters($original_content, $cleaned_content) {
+        if (empty($original_content) || empty($cleaned_content)) {
+            return array();
+        }
+        
+        $detected = array();
+        $utm_urls_original = array();
+        $utm_urls_cleaned = array();
+        
+        // Buscar URLs con parámetros UTM en el contenido original
+        $pattern = '/(https?:\/\/[^\s<>"\']+)/i';
+        preg_match_all($pattern, $original_content, $url_matches_original);
+        
+        foreach ($url_matches_original[1] as $url) {
+            $parsed = parse_url($url);
+            if ($parsed !== false && isset($parsed['query'])) {
+                parse_str($parsed['query'], $params);
+                $has_utm = false;
+                foreach ($params as $key => $value) {
+                    if (strpos($key, 'utm_') === 0) {
+                        $has_utm = true;
+                        break;
+                    }
+                }
+                if ($has_utm && !in_array($url, $utm_urls_original)) {
+                    $utm_urls_original[] = $url;
+                }
+            }
+        }
+        
+        // Buscar URLs con parámetros UTM en el contenido limpio
+        preg_match_all($pattern, $cleaned_content, $url_matches_cleaned);
+        
+        foreach ($url_matches_cleaned[1] as $url) {
+            $parsed = parse_url($url);
+            if ($parsed !== false && isset($parsed['query'])) {
+                parse_str($parsed['query'], $params);
+                $has_utm = false;
+                foreach ($params as $key => $value) {
+                    if (strpos($key, 'utm_') === 0) {
+                        $has_utm = true;
+                        break;
+                    }
+                }
+                if ($has_utm && !in_array($url, $utm_urls_cleaned)) {
+                    $utm_urls_cleaned[] = $url;
+                }
+            }
+        }
+        
+        $removed_count = count($utm_urls_original) - count($utm_urls_cleaned);
+        if ($removed_count > 0) {
+            $detected['UTM Parameters'] = $removed_count;
+        }
+        
         return $detected;
     }
 

@@ -1035,15 +1035,20 @@ class LLM_Trace_Cleaner_Cleaner {
         // Buscar en atributos href
         $pattern1 = '/(<a[^>]+href=["\'])([^"\']+)(["\'])/i';
         preg_match_all($pattern1, $html, $href_matches);
-        $utm_count = 0;
+        $utm_urls = array();
         foreach ($href_matches[2] as $url) {
             $parsed = parse_url($url);
             if ($parsed !== false && isset($parsed['query'])) {
                 parse_str($parsed['query'], $params);
+                $has_utm = false;
                 foreach ($params as $key => $value) {
                     if (strpos($key, 'utm_') === 0) {
-                        $utm_count++;
+                        $has_utm = true;
+                        break;
                     }
+                }
+                if ($has_utm) {
+                    $utm_urls[] = $url;
                 }
             }
         }
@@ -1056,14 +1061,22 @@ class LLM_Trace_Cleaner_Cleaner {
             $parsed = parse_url($url);
             if ($parsed !== false && isset($parsed['query'])) {
                 parse_str($parsed['query'], $params);
+                $has_utm = false;
                 foreach ($params as $key => $value) {
                     if (strpos($key, 'utm_') === 0) {
-                        // Verificar que no esté en un href ya procesado
-                        $pos = strpos($html, $url);
-                        if ($pos !== false) {
-                            $before = substr($html, max(0, $pos - 20), 20);
-                            if (strpos($before, 'href=') === false) {
-                                $utm_count++;
+                        $has_utm = true;
+                        break;
+                    }
+                }
+                if ($has_utm) {
+                    // Verificar que no esté en un href ya procesado
+                    $pos = strpos($html, $url);
+                    if ($pos !== false) {
+                        $before = substr($html, max(0, $pos - 20), 20);
+                        if (strpos($before, 'href=') === false) {
+                            // Evitar duplicados
+                            if (!in_array($url, $utm_urls)) {
+                                $utm_urls[] = $url;
                             }
                         }
                     }
@@ -1071,9 +1084,10 @@ class LLM_Trace_Cleaner_Cleaner {
             }
         }
         
-        if ($utm_count > 0) {
-            $analysis['utm_parameters_found']['UTM Parameters'] = $utm_count;
-            $analysis['total_utm_parameters'] = $utm_count;
+        if (!empty($utm_urls)) {
+            $analysis['utm_parameters_found']['UTM Parameters'] = count($utm_urls);
+            $analysis['utm_urls_found'] = $utm_urls; // Guardar URLs completas
+            $analysis['total_utm_parameters'] = count($utm_urls);
         }
         
         return $analysis;

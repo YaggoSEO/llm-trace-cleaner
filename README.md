@@ -325,6 +325,21 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.6.2
+- **Análisis previo mejorado**:
+  - El análisis ahora muestra una tabla seleccionable con todos los posts/páginas que tienen datos encontrados
+  - Cada post muestra su título (enlace), ID y los elementos encontrados (atributos, Unicode, content references, UTM parameters)
+  - Botones "Seleccionar todo" / "Deseleccionar todo" para facilitar la selección
+  - La tabla es colapsable para no ocupar mucho espacio
+- **Detección mejorada de contenido modificado**:
+  - El sistema de logging ahora detecta automáticamente content references y UTM parameters eliminados
+  - Mejora en la detección cuando no hay stats pero hay cambios en el contenido
+  - El análisis captura URLs completas con parámetros UTM para mejor identificación
+- **Simplificación de logs del updater**:
+  - Los logs del updater ahora muestran solo el último error y la última verificación
+  - Visualización mejorada como información de estado en lugar de tablas de historial
+  - Los logs se muestran dentro de la sección "Sistema de Actualizaciones desde GitHub"
+
 ### 1.6.1
 - **Corrección crítica de persistencia de transients**:
   - Solucionado el problema donde el estado del proceso no se encontraba al iniciar la limpieza manual
