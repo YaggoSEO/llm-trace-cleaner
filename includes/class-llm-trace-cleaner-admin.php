@@ -237,7 +237,6 @@ class LLM_Trace_Cleaner_Admin {
         // Inicializar el estado del proceso con todos los IDs
         $process_id = 'llm_trace_clean_' . time();
         // #region agent log
-        $log_file = __DIR__ . '/../../.cursor/debug.log';
         $transient_key = 'llm_trace_cleaner_process_' . $process_id;
         $process_data = array(
             'total' => $total,
@@ -247,12 +246,26 @@ class LLM_Trace_Cleaner_Admin {
             'started' => current_time('mysql'),
             'post_ids' => $post_ids, // Guardar todos los IDs para procesamiento por lotes
         );
-        file_put_contents($log_file, json_encode(array('sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A,B,C','location'=>'class-llm-trace-cleaner-admin.php:239','message'=>'ANTES set_transient','data'=>array('process_id'=>$process_id,'transient_key'=>$transient_key,'total'=>$total,'post_ids_count'=>count($post_ids),'timestamp'=>time()),'timestamp'=>round(microtime(true)*1000)))."\n", FILE_APPEND);
+        $this->log_debug('DEBUG: ANTES set_transient', array(
+            'hypothesisId' => 'A,B,C',
+            'process_id' => $process_id,
+            'transient_key' => $transient_key,
+            'total' => $total,
+            'post_ids_count' => count($post_ids),
+            'timestamp' => time()
+        ));
         // #endregion
         $set_result = set_transient($transient_key, $process_data, 7200); // 2 horas para procesos largos
         // #region agent log
         $verify_transient = get_transient($transient_key);
-        file_put_contents($log_file, json_encode(array('sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A,B','location'=>'class-llm-trace-cleaner-admin.php:246','message'=>'DESPUES set_transient','data'=>array('set_result'=>$set_result,'transient_key'=>$transient_key,'verify_exists'=>!empty($verify_transient),'verify_total'=>isset($verify_transient['total'])?$verify_transient['total']:null,'timestamp'=>time()),'timestamp'=>round(microtime(true)*1000)))."\n", FILE_APPEND);
+        $this->log_debug('DEBUG: DESPUES set_transient', array(
+            'hypothesisId' => 'A,B',
+            'set_result' => $set_result,
+            'transient_key' => $transient_key,
+            'verify_exists' => !empty($verify_transient),
+            'verify_total' => isset($verify_transient['total']) ? $verify_transient['total'] : null,
+            'timestamp' => time()
+        ));
         // #endregion
         
         $this->log_debug('Proceso iniciado', array(
@@ -308,24 +321,37 @@ class LLM_Trace_Cleaner_Admin {
             }
             
             // #region agent log
-            $log_file = __DIR__ . '/../../.cursor/debug.log';
             $transient_key = 'llm_trace_cleaner_process_' . $process_id;
-            file_put_contents($log_file, json_encode(array('sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A,C,D','location'=>'class-llm-trace-cleaner-admin.php:301','message'=>'ANTES get_transient','data'=>array('process_id'=>$process_id,'transient_key'=>$transient_key,'process_id_length'=>strlen($process_id),'transient_key_length'=>strlen($transient_key),'timestamp'=>time()),'timestamp'=>round(microtime(true)*1000)))."\n", FILE_APPEND);
+            $this->log_debug('DEBUG: ANTES get_transient', array(
+                'hypothesisId' => 'A,C,D',
+                'process_id' => $process_id,
+                'transient_key' => $transient_key,
+                'process_id_length' => strlen($process_id),
+                'transient_key_length' => strlen($transient_key),
+                'timestamp' => time()
+            ));
             // #endregion
             
             // Obtener estado del proceso
             $process_state = get_transient($transient_key);
             
             // #region agent log
-            $all_transients_check = false;
             global $wpdb;
             $transient_exists_db = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", '_transient_' . $transient_key, '_transient_timeout_' . $transient_key));
-            file_put_contents($log_file, json_encode(array('sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A,B,D,E','location'=>'class-llm-trace-cleaner-admin.php:305','message'=>'DESPUES get_transient','data'=>array('process_state_exists'=>!empty($process_state),'process_state_is_array'=>is_array($process_state),'process_state_total'=>isset($process_state['total'])?$process_state['total']:null,'transient_in_db'=>$transient_exists_db,'timestamp'=>time()),'timestamp'=>round(microtime(true)*1000)))."\n", FILE_APPEND);
+            $this->log_debug('DEBUG: DESPUES get_transient', array(
+                'hypothesisId' => 'A,B,D,E',
+                'process_state_exists' => !empty($process_state),
+                'process_state_is_array' => is_array($process_state),
+                'process_state_total' => isset($process_state['total']) ? $process_state['total'] : null,
+                'transient_in_db' => $transient_exists_db,
+                'transient_key' => $transient_key,
+                'timestamp' => time()
+            ));
             // #endregion
             
             if (!$process_state) {
                 // #region agent log
-                file_put_contents($log_file, json_encode(array('sessionId'=>'debug-session','runId'=>'run1','hypothesisId'=>'A,B,C,D,E','location'=>'class-llm-trace-cleaner-admin.php:310','message'=>'ERROR: Estado no encontrado','data'=>array('process_id'=>$process_id,'transient_key'=>$transient_key,'all_transients_prefix'=>substr($transient_key,0,30),'timestamp'=>time()),'timestamp'=>round(microtime(true)*1000)))."\n", FILE_APPEND);
+                $this->log_error('DEBUG: ERROR Estado no encontrado', "Process ID: {$process_id}, Transient Key: {$transient_key}, Key Length: " . strlen($transient_key) . ", In DB: {$transient_exists_db}");
                 // #endregion
                 $this->log_error('Estado del proceso no encontrado', "Process ID: {$process_id}");
                 wp_send_json_error(array('message' => __('Estado del proceso no encontrado.', 'llm-trace-cleaner')));
