@@ -216,11 +216,27 @@ class LLM_Trace_Cleaner_Admin {
      * AJAX: Obtener total de posts a procesar
      */
     public function ajax_get_total_posts() {
+        // #region agent log
+        $this->log_debug('DEBUG: ajax_get_total_posts INICIO', array(
+            'hypothesisId' => 'F',
+            'timestamp' => time(),
+            'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB'
+        ));
+        // #endregion
+        
         check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
         
         if (!current_user_can('manage_options')) {
+            $this->log_error('DEBUG: Sin permisos en ajax_get_total_posts', '');
             wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
         }
+        
+        // #region agent log
+        $this->log_debug('DEBUG: Después de verificar permisos', array(
+            'hypothesisId' => 'F',
+            'timestamp' => time()
+        ));
+        // #endregion
         
         // Obtener TODOS los IDs de posts y páginas publicados de una vez
         // Esto evita problemas con offset y filtros de plugins
@@ -233,6 +249,15 @@ class LLM_Trace_Cleaner_Admin {
         );
         
         $total = count($post_ids);
+        
+        // #region agent log
+        $this->log_debug('DEBUG: Después de obtener post_ids', array(
+            'hypothesisId' => 'F',
+            'total' => $total,
+            'post_ids_count' => count($post_ids),
+            'timestamp' => time()
+        ));
+        // #endregion
         
         // Inicializar el estado del proceso con todos los IDs
         $process_id = 'llm_trace_clean_' . time();
@@ -276,6 +301,8 @@ class LLM_Trace_Cleaner_Admin {
         // #region agent log
         $verify_transient = get_transient($transient_key);
         $serialized_size_light = strlen(serialize($process_data_light));
+        global $wpdb;
+        $transient_in_db_after_set = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", '_transient_' . $transient_key, '_transient_timeout_' . $transient_key));
         $this->log_debug('DEBUG: DESPUES set_transient', array(
             'hypothesisId' => 'A,B',
             'set_result' => $set_result,
@@ -284,6 +311,8 @@ class LLM_Trace_Cleaner_Admin {
             'verify_total' => isset($verify_transient['total']) ? $verify_transient['total'] : null,
             'serialized_size_light_bytes' => $serialized_size_light,
             'serialized_size_light_mb' => round($serialized_size_light / 1024 / 1024, 2),
+            'transient_in_db_after_set' => $transient_in_db_after_set,
+            'wpdb_last_error' => $wpdb->last_error,
             'timestamp' => time()
         ));
         // #endregion
@@ -294,10 +323,25 @@ class LLM_Trace_Cleaner_Admin {
             'first_10_ids' => array_slice($post_ids, 0, 10) // Solo para logging
         ));
         
+        // #region agent log
+        $this->log_debug('DEBUG: ANTES wp_send_json_success', array(
+            'hypothesisId' => 'F',
+            'process_id' => $process_id,
+            'transient_key' => $transient_key,
+            'total' => $total,
+            'timestamp' => time()
+        ));
+        // #endregion
+        
         wp_send_json_success(array(
             'total' => $total,
             'process_id' => $process_id,
         ));
+        
+        // #region agent log
+        // Este log nunca se ejecutará porque wp_send_json_success termina la ejecución
+        // Pero lo dejamos aquí para documentar
+        // #endregion
     }
     
     /**
