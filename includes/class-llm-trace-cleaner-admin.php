@@ -217,27 +217,11 @@ class LLM_Trace_Cleaner_Admin {
      */
     public function ajax_get_total_posts() {
         try {
-            // #region agent log
-            $this->log_debug('DEBUG: ajax_get_total_posts INICIO', array(
-                'hypothesisId' => 'F',
-                'timestamp' => time(),
-                'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB'
-            ));
-            // #endregion
-            
             check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
         
-        if (!current_user_can('manage_options')) {
-            $this->log_error('DEBUG: Sin permisos en ajax_get_total_posts', '');
-            wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
-        }
-        
-        // #region agent log
-        $this->log_debug('DEBUG: Después de verificar permisos', array(
-            'hypothesisId' => 'F',
-            'timestamp' => time()
-        ));
-        // #endregion
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error(array('message' => __('Sin permisos.', 'llm-trace-cleaner')));
+            }
         
         // Obtener TODOS los IDs de posts y páginas publicados de una vez
         // Esto evita problemas con offset y filtros de plugins
@@ -251,40 +235,9 @@ class LLM_Trace_Cleaner_Admin {
         
         $total = count($post_ids);
         
-        // #region agent log
-        $this->log_debug('DEBUG: Después de obtener post_ids', array(
-            'hypothesisId' => 'F',
-            'total' => $total,
-            'post_ids_count' => count($post_ids),
-            'timestamp' => time()
-        ));
-        // #endregion
-        
-        // Inicializar el estado del proceso con todos los IDs
+        // Inicializar el estado del proceso
         $process_id = 'llm_trace_clean_' . time();
-        // #region agent log
         $transient_key = 'llm_trace_cleaner_process_' . $process_id;
-        $process_data = array(
-            'total' => $total,
-            'processed' => 0,
-            'modified' => 0,
-            'stats' => array(),
-            'started' => current_time('mysql'),
-            'post_ids' => $post_ids, // Guardar todos los IDs para procesamiento por lotes
-        );
-        // #region agent log
-        $serialized_size = strlen(serialize($process_data));
-        $this->log_debug('DEBUG: ANTES set_transient', array(
-            'hypothesisId' => 'A,B,C',
-            'process_id' => $process_id,
-            'transient_key' => $transient_key,
-            'total' => $total,
-            'post_ids_count' => count($post_ids),
-            'serialized_size_bytes' => $serialized_size,
-            'serialized_size_mb' => round($serialized_size / 1024 / 1024, 2),
-            'timestamp' => time()
-        ));
-        // #endregion
         
         // NO guardar todos los IDs en el transient (puede ser demasiado grande)
         // En su lugar, guardar solo el total y recalcular los IDs cuando sea necesario
@@ -331,47 +284,6 @@ class LLM_Trace_Cleaner_Admin {
         wp_cache_delete($transient_key, 'transient');
         wp_cache_delete('alloptions', 'options');
         
-        $set_result = true; // Asumimos éxito después de insertar directamente
-        
-        // #region agent log
-        // Limpiar caché antes de verificar
-        wp_cache_delete($transient_key, 'transient');
-        wp_cache_delete('alloptions', 'options');
-        
-        // Leer directamente desde BD para verificar
-        $transient_in_db_after_set = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", $transient_option_key, $transient_timeout_key));
-        
-        // Verificar qué hay realmente en la BD
-        $transient_value_in_db = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_option_key));
-        $transient_timeout_in_db = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_timeout_key));
-        $current_time = time();
-        $is_expired = ($transient_timeout_in_db && intval($transient_timeout_in_db) < $current_time);
-        
-        // Deserializar para verificar
-        $verify_transient = false;
-        if ($transient_value_in_db && !$is_expired) {
-            $verify_transient = maybe_unserialize($transient_value_in_db);
-        }
-        
-        $serialized_size_light = strlen(serialize($process_data_light));
-        
-        if (empty($verify_transient) || $transient_in_db_after_set == 0) {
-            $this->log_error('DEBUG: ERROR set_transient falló después de insertar directamente', "verify_exists: " . (!empty($verify_transient) ? 'true' : 'false') . ", in_db: {$transient_in_db_after_set}, key: {$transient_key}, timeout_in_db: {$transient_timeout_in_db}, current_time: {$current_time}, is_expired: " . ($is_expired ? 'true' : 'false') . ", value_length: " . strlen($transient_value_in_db) . ", wpdb_error: " . ($wpdb->last_error ? $wpdb->last_error : 'none'));
-        }
-        
-        $this->log_debug('DEBUG: DESPUES set_transient', array(
-            'hypothesisId' => 'A,B',
-            'set_result' => $set_result,
-            'transient_key' => $transient_key,
-            'verify_exists' => !empty($verify_transient),
-            'verify_total' => isset($verify_transient['total']) ? $verify_transient['total'] : null,
-            'serialized_size_light_bytes' => $serialized_size_light,
-            'serialized_size_light_mb' => round($serialized_size_light / 1024 / 1024, 2),
-            'transient_in_db_after_set' => $transient_in_db_after_set,
-            'wpdb_last_error' => $wpdb->last_error,
-            'timestamp' => time()
-        ));
-        // #endregion
         
         $this->log_debug('Proceso iniciado', array(
             'total_posts' => $total,
@@ -379,27 +291,12 @@ class LLM_Trace_Cleaner_Admin {
             'first_10_ids' => array_slice($post_ids, 0, 10) // Solo para logging
         ));
         
-        // #region agent log
-        $this->log_debug('DEBUG: ANTES wp_send_json_success', array(
-            'hypothesisId' => 'F',
-            'process_id' => $process_id,
-            'transient_key' => $transient_key,
-            'total' => $total,
-            'timestamp' => time()
-        ));
-        // #endregion
-        
             wp_send_json_success(array(
                 'total' => $total,
                 'process_id' => $process_id,
             ));
-            
-            // #region agent log
-            // Este log nunca se ejecutará porque wp_send_json_success termina la ejecución
-            // Pero lo dejamos aquí para documentar
-            // #endregion
         } catch (Exception $e) {
-            $this->log_error('DEBUG: Excepción en ajax_get_total_posts', $e->getMessage() . ' - ' . $e->getTraceAsString());
+            $this->log_error('Excepción en ajax_get_total_posts', $e->getMessage() . ' - ' . $e->getTraceAsString());
             wp_send_json_error(array('message' => __('Error al obtener total de posts: ', 'llm-trace-cleaner') . $e->getMessage()));
         }
     }
@@ -444,17 +341,7 @@ class LLM_Trace_Cleaner_Admin {
                 wp_send_json_error(array('message' => __('ID de proceso inválido.', 'llm-trace-cleaner')));
             }
             
-            // #region agent log
             $transient_key = 'llm_trace_cleaner_process_' . $process_id;
-            $this->log_debug('DEBUG: ANTES get_transient', array(
-                'hypothesisId' => 'A,C,D',
-                'process_id' => $process_id,
-                'transient_key' => $transient_key,
-                'process_id_length' => strlen($process_id),
-                'transient_key_length' => strlen($transient_key),
-                'timestamp' => time()
-            ));
-            // #endregion
             
             // Limpiar caché antes de obtener
             wp_cache_delete($transient_key, 'transient');
@@ -469,7 +356,7 @@ class LLM_Trace_Cleaner_Admin {
             $transient_value_raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_option_key_get));
             
             // Verificar si el transient está expirado
-            if ($transient_timeout_value && $transient_timeout_value > time()) {
+            if ($transient_timeout_value && intval($transient_timeout_value) > time()) {
                 // El transient no está expirado, deserializar el valor
                 $process_state = maybe_unserialize($transient_value_raw);
             } else {
@@ -477,35 +364,7 @@ class LLM_Trace_Cleaner_Admin {
                 $process_state = false;
             }
             
-            // #region agent log
-            global $wpdb;
-            $transient_exists_db = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", '_transient_' . $transient_key, '_transient_timeout_' . $transient_key));
-            
-            // Verificar qué hay en la BD
-            $transient_value_check = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", '_transient_' . $transient_key));
-            $transient_timeout_check = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", '_transient_timeout_' . $transient_key));
-            $current_time_check = time();
-            $is_expired_check = ($transient_timeout_check && $transient_timeout_check < $current_time_check);
-            
-            $this->log_debug('DEBUG: DESPUES get_transient', array(
-                'hypothesisId' => 'A,B,D,E',
-                'process_state_exists' => !empty($process_state),
-                'process_state_is_array' => is_array($process_state),
-                'process_state_total' => isset($process_state['total']) ? $process_state['total'] : null,
-                'transient_in_db' => $transient_exists_db,
-                'transient_key' => $transient_key,
-                'timeout_in_db' => $transient_timeout_check,
-                'current_time' => $current_time_check,
-                'is_expired' => $is_expired_check,
-                'value_length' => strlen($transient_value_check),
-                'timestamp' => time()
-            ));
-            // #endregion
-            
             if (!$process_state) {
-                // #region agent log
-                $this->log_error('DEBUG: ERROR Estado no encontrado', "Process ID: {$process_id}, Transient Key: {$transient_key}, Key Length: " . strlen($transient_key) . ", In DB: {$transient_exists_db}");
-                // #endregion
                 $this->log_error('Estado del proceso no encontrado', "Process ID: {$process_id}");
                 wp_send_json_error(array('message' => __('Estado del proceso no encontrado.', 'llm-trace-cleaner')));
             }
@@ -1256,6 +1115,12 @@ class LLM_Trace_Cleaner_Admin {
         // Procesar acciones
         if (isset($_POST['llm_trace_cleaner_clear_debug_log']) && check_admin_referer('llm_trace_cleaner_clear_debug_log')) {
             $this->clear_debug_logs();
+            wp_redirect(add_query_arg('llm_trace_cleaner_debug_cleared', '1', admin_url('admin.php?page=llm-trace-cleaner&tab=debug')));
+            exit;
+        }
+        
+        // Mostrar mensaje de éxito después del redirect
+        if (isset($_GET['llm_trace_cleaner_debug_cleared'])) {
             echo '<div class="notice notice-success is-dismissible"><p>' . 
                  esc_html__('Logs de depuración eliminados.', 'llm-trace-cleaner') . 
                  '</p></div>';
@@ -1304,7 +1169,7 @@ class LLM_Trace_Cleaner_Admin {
                             ?>
                             <tr>
                                 <th><?php echo esc_html__('Memory Limit:', 'llm-trace-cleaner'); ?></th>
-                                <td class="<?php echo esc_attr($memory_class); ?>">
+                                <td>
                                     <strong><?php echo esc_html($memory_limit); ?></strong>
                                 </td>
                                 <td><?php echo esc_html($memory_recommended); ?></td>
@@ -1316,26 +1181,20 @@ class LLM_Trace_Cleaner_Admin {
                             ?>
                             <tr>
                                 <th><?php echo esc_html__('Max Execution Time:', 'llm-trace-cleaner'); ?></th>
-                                <td class="<?php echo esc_attr($time_class); ?>">
+                                <td>
                                     <strong><?php echo esc_html($max_execution_time); ?> segundos</strong>
                                 </td>
                                 <td><?php echo esc_html($time_recommended); ?> segundos</td>
                             </tr>
                             <tr>
                                 <th><?php echo esc_html__('DOMDocument disponible:', 'llm-trace-cleaner'); ?></th>
-                                <td class="<?php echo class_exists('DOMDocument') ? 'status-ok' : 'status-warning'; ?>">
+                                <td>
                                     <strong><?php echo class_exists('DOMDocument') ? esc_html__('Sí', 'llm-trace-cleaner') : esc_html__('No', 'llm-trace-cleaner'); ?></strong>
                                 </td>
                                 <td><?php echo esc_html__('Sí (recomendado)', 'llm-trace-cleaner'); ?></td>
                             </tr>
                         </tbody>
                     </table>
-                    <p class="description" style="margin-top: 10px;">
-                        <span class="status-ok" style="display: inline-block; width: 12px; height: 12px; background: #46b450; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
-                        <?php echo esc_html__('Verde: Valor correcto o superior al recomendado', 'llm-trace-cleaner'); ?><br>
-                        <span class="status-warning" style="display: inline-block; width: 12px; height: 12px; background: #dc3232; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
-                        <?php echo esc_html__('Rojo: Valor inferior al recomendado (puede causar problemas)', 'llm-trace-cleaner'); ?>
-                    </p>
                 </div>
                 
                 <!-- Información de plugins y hooks -->
@@ -1428,14 +1287,25 @@ class LLM_Trace_Cleaner_Admin {
                     </p>
                     
                     <div style="margin-bottom: 20px;">
-                        <form method="post" action="" style="display: inline-block; margin-right: 10px;">
+                        <form method="post" action="" style="display: inline-block; margin-right: 10px;" id="llm-trace-cleaner-clear-debug-form">
                             <?php wp_nonce_field('llm_trace_cleaner_clear_debug_log'); ?>
                             <input type="submit" 
                                    name="llm_trace_cleaner_clear_debug_log" 
                                    class="button button-secondary" 
                                    value="<?php echo esc_attr__('Limpiar todos los logs', 'llm-trace-cleaner'); ?>"
-                                   onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todos los logs de depuración?', 'llm-trace-cleaner')); ?>');">
+                                   id="llm-trace-cleaner-clear-debug-btn">
                         </form>
+                        <script type="text/javascript">
+                        jQuery(document).ready(function($) {
+                            $('#llm-trace-cleaner-clear-debug-btn').on('click', function(e) {
+                                if (!confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todos los logs de depuración?', 'llm-trace-cleaner')); ?>')) {
+                                    e.preventDefault();
+                                    return false;
+                                }
+                                $(this).prop('disabled', true).val('<?php echo esc_js(__('Eliminando...', 'llm-trace-cleaner')); ?>');
+                            });
+                        });
+                        </script>
                         <a href="<?php echo esc_url(wp_nonce_url(add_query_arg('llm_trace_cleaner_download_debug_log', '1'), 'llm_trace_cleaner_download_debug_log')); ?>" 
                            class="button button-secondary">
                             <?php echo esc_html__('Descargar log de depuración', 'llm-trace-cleaner'); ?>
@@ -1526,7 +1396,13 @@ class LLM_Trace_Cleaner_Admin {
                     // Procesar limpieza del historial de verificaciones
                     if (isset($_POST['llm_trace_cleaner_clear_updater_logs']) && check_admin_referer('llm_trace_cleaner_clear_updater_logs')) {
                         delete_option('llm_trace_cleaner_updater_logs');
-                        echo '<div class="notice notice-success"><p>' . 
+                        wp_redirect(add_query_arg('llm_trace_cleaner_updater_logs_cleared', '1', admin_url('admin.php?page=llm-trace-cleaner&tab=debug')));
+                        exit;
+                    }
+                    
+                    // Mostrar mensaje de éxito después del redirect
+                    if (isset($_GET['llm_trace_cleaner_updater_logs_cleared'])) {
+                        echo '<div class="notice notice-success is-dismissible"><p>' . 
                              esc_html__('Historial de verificaciones eliminado.', 'llm-trace-cleaner') . 
                              '</p></div>';
                     }
@@ -1667,14 +1543,25 @@ class LLM_Trace_Cleaner_Admin {
                     <?php if (!empty($updater_logs)): ?>
                         <h3 style="margin-top: 30px;"><?php echo esc_html__('Historial de Verificaciones', 'llm-trace-cleaner'); ?></h3>
                         <div style="margin-bottom: 15px;">
-                            <form method="post" action="" style="display: inline-block;">
+                            <form method="post" action="" style="display: inline-block;" id="llm-trace-cleaner-clear-updater-logs-form">
                                 <?php wp_nonce_field('llm_trace_cleaner_clear_updater_logs'); ?>
                                 <input type="submit" 
                                        name="llm_trace_cleaner_clear_updater_logs" 
                                        class="button button-secondary" 
                                        value="<?php echo esc_attr__('Limpiar historial de verificaciones', 'llm-trace-cleaner'); ?>"
-                                       onclick="return confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todo el historial de verificaciones?', 'llm-trace-cleaner')); ?>');">
+                                       id="llm-trace-cleaner-clear-updater-logs-btn">
                             </form>
+                            <script type="text/javascript">
+                            jQuery(document).ready(function($) {
+                                $('#llm-trace-cleaner-clear-updater-logs-btn').on('click', function(e) {
+                                    if (!confirm('<?php echo esc_js(__('¿Estás seguro de que quieres eliminar todo el historial de verificaciones?', 'llm-trace-cleaner')); ?>')) {
+                                        e.preventDefault();
+                                        return false;
+                                    }
+                                    $(this).prop('disabled', true).val('<?php echo esc_js(__('Eliminando...', 'llm-trace-cleaner')); ?>');
+                                });
+                            });
+                            </script>
                         </div>
                         <table class="wp-list-table widefat fixed striped">
                             <thead>
@@ -1707,7 +1594,7 @@ class LLM_Trace_Cleaner_Admin {
                     <div class="notice notice-info" style="margin-top: 20px;">
                         <p>
                             <strong><?php echo esc_html__('Información:', 'llm-trace-cleaner'); ?></strong>
-                            <?php echo esc_html__('Las actualizaciones se verifican automáticamente cada hora. Para repositorios privados, configura un token en el archivo .env del plugin.', 'llm-trace-cleaner'); ?>
+                            <?php echo esc_html__('Las actualizaciones se verifican automáticamente cada hora.', 'llm-trace-cleaner'); ?>
                         </p>
                     </div>
                 </div>
@@ -2390,18 +2277,6 @@ class LLM_Trace_Cleaner_Admin {
             .llm-trace-cleaner-progress-text {
                 min-width: 80px;
                 text-align: right;
-                font-weight: 600;
-            }
-            .llm-trace-cleaner-admin .status-ok,
-            .llm-trace-cleaner-admin td.status-ok,
-            .llm-trace-cleaner-admin td.status-ok strong {
-                color: #46b450 !important;
-                font-weight: 600;
-            }
-            .llm-trace-cleaner-admin .status-warning,
-            .llm-trace-cleaner-admin td.status-warning,
-            .llm-trace-cleaner-admin td.status-warning strong {
-                color: #dc3232 !important;
                 font-weight: 600;
             }
         </style>

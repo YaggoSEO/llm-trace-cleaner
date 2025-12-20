@@ -325,6 +325,14 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.6.1
+- **Corrección crítica de persistencia de transients**:
+  - Solucionado el problema donde el estado del proceso no se encontraba al iniciar la limpieza manual
+  - Implementada persistencia directa en base de datos para evitar problemas con object cache (Redis, Memcached)
+  - El sistema ahora guarda y lee los transients directamente desde la base de datos, evitando problemas de sincronización
+  - Optimización: Ya no se guardan todos los IDs de posts en el transient (solo metadatos), recalculándolos cuando es necesario
+  - Mejora en la confiabilidad del proceso de limpieza por lotes
+
 ### 1.6.0
 - **Telemetría mejorada para estudios e investigación**:
   - Nuevos datos capturados: Content References y UTM Parameters (totales, tipos únicos y detalle por tipo)
