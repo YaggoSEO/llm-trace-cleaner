@@ -935,8 +935,33 @@ class LLM_Trace_Cleaner_Admin {
      * Limpiar logs de depuración
      */
     private function clear_debug_logs() {
-        delete_option('llm_trace_cleaner_error_logs');
-        delete_option('llm_trace_cleaner_debug_logs');
+        // #region agent log
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A,B,C,D,E', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'clear_debug_logs ENTRY', 'data' => array('function' => 'clear_debug_logs'), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
+        
+        // #region agent log
+        $error_logs_before = get_option('llm_trace_cleaner_error_logs', false);
+        $debug_logs_before = get_option('llm_trace_cleaner_debug_logs', false);
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'B,D', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'BEFORE delete_option', 'data' => array('error_logs_exists' => $error_logs_before !== false, 'error_logs_count' => is_array($error_logs_before) ? count($error_logs_before) : 0, 'debug_logs_exists' => $debug_logs_before !== false, 'debug_logs_count' => is_array($debug_logs_before) ? count($debug_logs_before) : 0), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
+        
+        $result1 = delete_option('llm_trace_cleaner_error_logs');
+        
+        // #region agent log
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'B', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'AFTER delete_option error_logs', 'data' => array('result' => $result1), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
+        
+        $result2 = delete_option('llm_trace_cleaner_debug_logs');
+        
+        // #region agent log
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'B', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'AFTER delete_option debug_logs', 'data' => array('result' => $result2), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
+        
+        // #region agent log
+        $error_logs_after = get_option('llm_trace_cleaner_error_logs', false);
+        $debug_logs_after = get_option('llm_trace_cleaner_debug_logs', false);
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'B,C,D', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'AFTER delete_option verification', 'data' => array('error_logs_exists' => $error_logs_after !== false, 'error_logs_count' => is_array($error_logs_after) ? count($error_logs_after) : 0, 'debug_logs_exists' => $debug_logs_after !== false, 'debug_logs_count' => is_array($debug_logs_after) ? count($debug_logs_after) : 0), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
     }
     
     /**
@@ -1113,10 +1138,28 @@ class LLM_Trace_Cleaner_Admin {
         }
         
         // Procesar acciones
+        // #region agent log
+        file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'render_debug_page checking POST', 'data' => array('post_isset' => isset($_POST['llm_trace_cleaner_clear_debug_log']), 'post_value' => isset($_POST['llm_trace_cleaner_clear_debug_log']) ? $_POST['llm_trace_cleaner_clear_debug_log'] : 'not_set'), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+        // #endregion
+        
         if (isset($_POST['llm_trace_cleaner_clear_debug_log']) && check_admin_referer('llm_trace_cleaner_clear_debug_log')) {
+            // #region agent log
+            file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'check_admin_referer PASSED, calling clear_debug_logs', 'data' => array(), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+            // #endregion
+            
             $this->clear_debug_logs();
+            
+            // #region agent log
+            file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'E', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'BEFORE wp_redirect', 'data' => array(), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+            // #endregion
+            
             wp_redirect(add_query_arg('llm_trace_cleaner_debug_cleared', '1', admin_url('admin.php?page=llm-trace-cleaner&tab=debug')));
             exit;
+        } else {
+            // #region agent log
+            $referer_check = isset($_POST['llm_trace_cleaner_clear_debug_log']);
+            file_put_contents('c:\\Users\\yagoy\\OneDrive\\Desktop\\PROYECTOS\\PLUGINS WORDPRESS\\LLM TRACE CLEANER\\.cursor\\debug.log', json_encode(array('sessionId' => 'debug-session', 'runId' => 'run1', 'hypothesisId' => 'A', 'location' => __FILE__ . ':' . __LINE__, 'message' => 'check_admin_referer FAILED or POST not set', 'data' => array('post_isset' => $referer_check), 'timestamp' => time() * 1000)) . "\n", FILE_APPEND);
+            // #endregion
         }
         
         // Mostrar mensaje de éxito después del redirect
