@@ -246,24 +246,44 @@ class LLM_Trace_Cleaner_Admin {
             'started' => current_time('mysql'),
             'post_ids' => $post_ids, // Guardar todos los IDs para procesamiento por lotes
         );
+        // #region agent log
+        $serialized_size = strlen(serialize($process_data));
         $this->log_debug('DEBUG: ANTES set_transient', array(
             'hypothesisId' => 'A,B,C',
             'process_id' => $process_id,
             'transient_key' => $transient_key,
             'total' => $total,
             'post_ids_count' => count($post_ids),
+            'serialized_size_bytes' => $serialized_size,
+            'serialized_size_mb' => round($serialized_size / 1024 / 1024, 2),
             'timestamp' => time()
         ));
         // #endregion
-        $set_result = set_transient($transient_key, $process_data, 7200); // 2 horas para procesos largos
+        
+        // NO guardar todos los IDs en el transient (puede ser demasiado grande)
+        // En su lugar, guardar solo el total y recalcular los IDs cuando sea necesario
+        $process_data_light = array(
+            'total' => $total,
+            'processed' => 0,
+            'modified' => 0,
+            'stats' => array(),
+            'started' => current_time('mysql'),
+            // NO guardar post_ids aquí - se recalcularán cuando sea necesario
+        );
+        
+        $set_result = set_transient($transient_key, $process_data_light, 7200); // 2 horas para procesos largos
+        
         // #region agent log
         $verify_transient = get_transient($transient_key);
+        $serialized_size_light = strlen(serialize($process_data_light));
         $this->log_debug('DEBUG: DESPUES set_transient', array(
             'hypothesisId' => 'A,B',
             'set_result' => $set_result,
             'transient_key' => $transient_key,
             'verify_exists' => !empty($verify_transient),
             'verify_total' => isset($verify_transient['total']) ? $verify_transient['total'] : null,
+            'serialized_size_light_bytes' => $serialized_size_light,
+            'serialized_size_light_mb' => round($serialized_size_light / 1024 / 1024, 2),
             'timestamp' => time()
         ));
         // #endregion
@@ -367,9 +387,15 @@ class LLM_Trace_Cleaner_Admin {
             $cleaner = new LLM_Trace_Cleaner_Cleaner();
             $logger = new LLM_Trace_Cleaner_Logger();
             
-            // Obtener los IDs que faltan por procesar usando post__in en lugar de offset
-            // Esto evita problemas cuando hay filtros de plugins que afectan la consulta
-            $all_post_ids = isset($process_state['post_ids']) ? $process_state['post_ids'] : array();
+            // Obtener los IDs que faltan por procesar
+            // Recalcular los IDs en lugar de guardarlos en el transient (evita problemas de tamaño)
+            global $wpdb;
+            $all_post_ids = $wpdb->get_col(
+                "SELECT ID FROM {$wpdb->posts} 
+                WHERE post_type IN ('post', 'page') 
+                AND post_status = 'publish' 
+                ORDER BY ID ASC"
+            );
             $processed_count = $process_state['processed'];
             $remaining_ids = array_slice($all_post_ids, $processed_count, $batch_size);
             
