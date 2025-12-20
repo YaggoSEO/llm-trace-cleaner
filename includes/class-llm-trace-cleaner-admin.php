@@ -318,9 +318,10 @@ class LLM_Trace_Cleaner_Admin {
             $serialized_data
         ));
         
+        // El timeout debe ser un número, no una cadena
         $wpdb->query($wpdb->prepare(
             "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
-            VALUES (%s, %s, 'no')
+            VALUES (%s, %d, 'no')
             ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
             $transient_timeout_key,
             $expiration
@@ -333,12 +334,29 @@ class LLM_Trace_Cleaner_Admin {
         $set_result = true; // Asumimos éxito después de insertar directamente
         
         // #region agent log
-        $verify_transient = get_transient($transient_key);
-        $serialized_size_light = strlen(serialize($process_data_light));
+        // Limpiar caché antes de verificar
+        wp_cache_delete($transient_key, 'transient');
+        wp_cache_delete('alloptions', 'options');
+        
+        // Leer directamente desde BD para verificar
         $transient_in_db_after_set = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", $transient_option_key, $transient_timeout_key));
         
+        // Verificar qué hay realmente en la BD
+        $transient_value_in_db = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_option_key));
+        $transient_timeout_in_db = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_timeout_key));
+        $current_time = time();
+        $is_expired = ($transient_timeout_in_db && intval($transient_timeout_in_db) < $current_time);
+        
+        // Deserializar para verificar
+        $verify_transient = false;
+        if ($transient_value_in_db && !$is_expired) {
+            $verify_transient = maybe_unserialize($transient_value_in_db);
+        }
+        
+        $serialized_size_light = strlen(serialize($process_data_light));
+        
         if (empty($verify_transient) || $transient_in_db_after_set == 0) {
-            $this->log_error('DEBUG: ERROR set_transient falló después de insertar directamente', "verify_exists: " . (!empty($verify_transient) ? 'true' : 'false') . ", in_db: {$transient_in_db_after_set}, key: {$transient_key}, wpdb_error: " . ($wpdb->last_error ? $wpdb->last_error : 'none'));
+            $this->log_error('DEBUG: ERROR set_transient falló después de insertar directamente', "verify_exists: " . (!empty($verify_transient) ? 'true' : 'false') . ", in_db: {$transient_in_db_after_set}, key: {$transient_key}, timeout_in_db: {$transient_timeout_in_db}, current_time: {$current_time}, is_expired: " . ($is_expired ? 'true' : 'false') . ", value_length: " . strlen($transient_value_in_db) . ", wpdb_error: " . ($wpdb->last_error ? $wpdb->last_error : 'none'));
         }
         
         $this->log_debug('DEBUG: DESPUES set_transient', array(
@@ -438,12 +456,37 @@ class LLM_Trace_Cleaner_Admin {
             ));
             // #endregion
             
-            // Obtener estado del proceso
-            $process_state = get_transient($transient_key);
+            // Limpiar caché antes de obtener
+            wp_cache_delete($transient_key, 'transient');
+            wp_cache_delete('alloptions', 'options');
+            
+            // Obtener estado del proceso directamente desde la BD para evitar problemas con object cache
+            global $wpdb;
+            $transient_option_key_get = '_transient_' . $transient_key;
+            $transient_timeout_key_get = '_transient_timeout_' . $transient_key;
+            
+            $transient_timeout_value = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_timeout_key_get));
+            $transient_value_raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $transient_option_key_get));
+            
+            // Verificar si el transient está expirado
+            if ($transient_timeout_value && $transient_timeout_value > time()) {
+                // El transient no está expirado, deserializar el valor
+                $process_state = maybe_unserialize($transient_value_raw);
+            } else {
+                // El transient está expirado o no existe
+                $process_state = false;
+            }
             
             // #region agent log
             global $wpdb;
             $transient_exists_db = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", '_transient_' . $transient_key, '_transient_timeout_' . $transient_key));
+            
+            // Verificar qué hay en la BD
+            $transient_value_check = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", '_transient_' . $transient_key));
+            $transient_timeout_check = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", '_transient_timeout_' . $transient_key));
+            $current_time_check = time();
+            $is_expired_check = ($transient_timeout_check && $transient_timeout_check < $current_time_check);
+            
             $this->log_debug('DEBUG: DESPUES get_transient', array(
                 'hypothesisId' => 'A,B,D,E',
                 'process_state_exists' => !empty($process_state),
@@ -451,6 +494,10 @@ class LLM_Trace_Cleaner_Admin {
                 'process_state_total' => isset($process_state['total']) ? $process_state['total'] : null,
                 'transient_in_db' => $transient_exists_db,
                 'transient_key' => $transient_key,
+                'timeout_in_db' => $transient_timeout_check,
+                'current_time' => $current_time_check,
+                'is_expired' => $is_expired_check,
+                'value_length' => strlen($transient_value_check),
                 'timestamp' => time()
             ));
             // #endregion
@@ -511,7 +558,7 @@ class LLM_Trace_Cleaner_Admin {
                 
                 $wpdb->query($wpdb->prepare(
                     "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
-                    VALUES (%s, %s, 'no')
+                    VALUES (%s, %d, 'no')
                     ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
                     $transient_timeout_key_final,
                     $expiration_final
@@ -706,7 +753,7 @@ class LLM_Trace_Cleaner_Admin {
             
             $wpdb->query($wpdb->prepare(
                 "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
-                VALUES (%s, %s, 'no')
+                VALUES (%s, %d, 'no')
                 ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
                 $transient_timeout_key_update,
                 $expiration_update
