@@ -297,16 +297,48 @@ class LLM_Trace_Cleaner_Admin {
             // NO guardar post_ids aquí - se recalcularán cuando sea necesario
         );
         
-        $set_result = set_transient($transient_key, $process_data_light, 7200); // 2 horas para procesos largos
+        // Forzar persistencia en base de datos usando update_option directamente
+        // Esto evita problemas con object cache que no persiste en BD
+        $transient_option_key = '_transient_' . $transient_key;
+        $transient_timeout_key = '_transient_timeout_' . $transient_key;
+        $expiration = time() + 7200; // 2 horas
+        
+        global $wpdb;
+        $serialized_data = maybe_serialize($process_data_light);
+        
+        // Eliminar transient existente si existe
+        delete_transient($transient_key);
+        
+        // Guardar directamente en la base de datos (dos INSERTs separados)
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
+            VALUES (%s, %s, 'no')
+            ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+            $transient_option_key,
+            $serialized_data
+        ));
+        
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
+            VALUES (%s, %s, 'no')
+            ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+            $transient_timeout_key,
+            $expiration
+        ));
+        
+        // Limpiar caché para forzar lectura desde BD
+        wp_cache_delete($transient_key, 'transient');
+        wp_cache_delete('alloptions', 'options');
+        
+        $set_result = true; // Asumimos éxito después de insertar directamente
         
         // #region agent log
         $verify_transient = get_transient($transient_key);
         $serialized_size_light = strlen(serialize($process_data_light));
-        global $wpdb;
-        $transient_in_db_after_set = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", '_transient_' . $transient_key, '_transient_timeout_' . $transient_key));
+        $transient_in_db_after_set = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", $transient_option_key, $transient_timeout_key));
         
-        if (!$set_result || empty($verify_transient) || $transient_in_db_after_set == 0) {
-            $this->log_error('DEBUG: ERROR set_transient falló', "set_result: " . ($set_result ? 'true' : 'false') . ", verify_exists: " . (!empty($verify_transient) ? 'true' : 'false') . ", in_db: {$transient_in_db_after_set}, key: {$transient_key}, wpdb_error: " . ($wpdb->last_error ? $wpdb->last_error : 'none'));
+        if (empty($verify_transient) || $transient_in_db_after_set == 0) {
+            $this->log_error('DEBUG: ERROR set_transient falló después de insertar directamente', "verify_exists: " . (!empty($verify_transient) ? 'true' : 'false') . ", in_db: {$transient_in_db_after_set}, key: {$transient_key}, wpdb_error: " . ($wpdb->last_error ? $wpdb->last_error : 'none'));
         }
         
         $this->log_debug('DEBUG: DESPUES set_transient', array(
@@ -461,7 +493,32 @@ class LLM_Trace_Cleaner_Admin {
                 ));
                 
                 $process_state['processed'] = $process_state['total'];
-                set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 7200);
+                // Usar persistencia directa en BD
+                $transient_key_final = 'llm_trace_cleaner_process_' . $process_id;
+                $transient_option_key_final = '_transient_' . $transient_key_final;
+                $transient_timeout_key_final = '_transient_timeout_' . $transient_key_final;
+                $expiration_final = time() + 7200;
+                $serialized_data_final = maybe_serialize($process_state);
+                
+                global $wpdb;
+                $wpdb->query($wpdb->prepare(
+                    "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
+                    VALUES (%s, %s, 'no')
+                    ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+                    $transient_option_key_final,
+                    $serialized_data_final
+                ));
+                
+                $wpdb->query($wpdb->prepare(
+                    "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
+                    VALUES (%s, %s, 'no')
+                    ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+                    $transient_timeout_key_final,
+                    $expiration_final
+                ));
+                
+                wp_cache_delete($transient_key_final, 'transient');
+                wp_cache_delete('alloptions', 'options');
                 
                 // Si el proceso está completo, limpiar toda la caché y enviar telemetría
                 if ($process_state['processed'] >= $process_state['total']) {
@@ -631,7 +688,33 @@ class LLM_Trace_Cleaner_Admin {
             }
             
             // Extender el transient a 2 horas para procesos largos
-            set_transient('llm_trace_cleaner_process_' . $process_id, $process_state, 7200);
+            // Usar el mismo método de persistencia directa
+            $transient_key_update = 'llm_trace_cleaner_process_' . $process_id;
+            $transient_option_key_update = '_transient_' . $transient_key_update;
+            $transient_timeout_key_update = '_transient_timeout_' . $transient_key_update;
+            $expiration_update = time() + 7200;
+            $serialized_data_update = maybe_serialize($process_state);
+            
+            global $wpdb;
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
+                VALUES (%s, %s, 'no')
+                ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+                $transient_option_key_update,
+                $serialized_data_update
+            ));
+            
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) 
+                VALUES (%s, %s, 'no')
+                ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+                $transient_timeout_key_update,
+                $expiration_update
+            ));
+            
+            // Limpiar caché
+            wp_cache_delete($transient_key_update, 'transient');
+            wp_cache_delete('alloptions', 'options');
             
             $this->log_debug('Lote completado', array(
                 'processed' => count($posts),
