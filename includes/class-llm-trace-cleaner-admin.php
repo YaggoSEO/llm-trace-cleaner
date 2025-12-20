@@ -216,15 +216,16 @@ class LLM_Trace_Cleaner_Admin {
      * AJAX: Obtener total de posts a procesar
      */
     public function ajax_get_total_posts() {
-        // #region agent log
-        $this->log_debug('DEBUG: ajax_get_total_posts INICIO', array(
-            'hypothesisId' => 'F',
-            'timestamp' => time(),
-            'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB'
-        ));
-        // #endregion
-        
-        check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
+        try {
+            // #region agent log
+            $this->log_debug('DEBUG: ajax_get_total_posts INICIO', array(
+                'hypothesisId' => 'F',
+                'timestamp' => time(),
+                'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB'
+            ));
+            // #endregion
+            
+            check_ajax_referer('llm_trace_cleaner_ajax', 'nonce');
         
         if (!current_user_can('manage_options')) {
             $this->log_error('DEBUG: Sin permisos en ajax_get_total_posts', '');
@@ -303,6 +304,11 @@ class LLM_Trace_Cleaner_Admin {
         $serialized_size_light = strlen(serialize($process_data_light));
         global $wpdb;
         $transient_in_db_after_set = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s OR option_name = %s", '_transient_' . $transient_key, '_transient_timeout_' . $transient_key));
+        
+        if (!$set_result || empty($verify_transient) || $transient_in_db_after_set == 0) {
+            $this->log_error('DEBUG: ERROR set_transient falló', "set_result: " . ($set_result ? 'true' : 'false') . ", verify_exists: " . (!empty($verify_transient) ? 'true' : 'false') . ", in_db: {$transient_in_db_after_set}, key: {$transient_key}, wpdb_error: " . ($wpdb->last_error ? $wpdb->last_error : 'none'));
+        }
+        
         $this->log_debug('DEBUG: DESPUES set_transient', array(
             'hypothesisId' => 'A,B',
             'set_result' => $set_result,
@@ -333,15 +339,19 @@ class LLM_Trace_Cleaner_Admin {
         ));
         // #endregion
         
-        wp_send_json_success(array(
-            'total' => $total,
-            'process_id' => $process_id,
-        ));
-        
-        // #region agent log
-        // Este log nunca se ejecutará porque wp_send_json_success termina la ejecución
-        // Pero lo dejamos aquí para documentar
-        // #endregion
+            wp_send_json_success(array(
+                'total' => $total,
+                'process_id' => $process_id,
+            ));
+            
+            // #region agent log
+            // Este log nunca se ejecutará porque wp_send_json_success termina la ejecución
+            // Pero lo dejamos aquí para documentar
+            // #endregion
+        } catch (Exception $e) {
+            $this->log_error('DEBUG: Excepción en ajax_get_total_posts', $e->getMessage() . ' - ' . $e->getTraceAsString());
+            wp_send_json_error(array('message' => __('Error al obtener total de posts: ', 'llm-trace-cleaner') . $e->getMessage()));
+        }
     }
     
     /**
@@ -2496,7 +2506,10 @@ class LLM_Trace_Cleaner_Admin {
                             totalPosts = response.data.total;
                             processId = response.data.process_id;
                             $('#llm-trace-cleaner-progress-text').text('0 / ' + totalPosts);
-                            processNextBatch();
+                            // Pequeño retraso para asegurar que el transient se haya guardado en la base de datos
+                            setTimeout(function() {
+                                processNextBatch();
+                            }, 500);
                         } else {
                             alert('Error: ' + (response.data.message || 'Error desconocido'));
                             resetUI();
