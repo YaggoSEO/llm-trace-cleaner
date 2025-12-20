@@ -325,6 +325,16 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.6.3
+- **Reorganización de la interfaz del Sistema de Actualizaciones**:
+  - La información del updater (último error y última verificación) ahora se muestra dentro de la tabla principal
+  - Eliminada la fila "Token de GitHub" de la tabla (no es necesaria para repos públicos)
+  - El bloque completo de "Sistema de Actualizaciones desde GitHub" se ha movido después de "Información del Sistema" para mejor organización
+- **Correcciones de bugs**:
+  - Corregido el botón "Limpiar todos los logs" que se quedaba en "Eliminando..." sin completar la acción
+  - Añadida validación para evitar mostrar fechas/horas duplicadas o en blanco en los logs de errores y depuración
+  - Mejora en la validación de campos antes de mostrar información en las tablas
+
 ### 1.6.2
 - **Análisis previo mejorado**:
   - El análisis ahora muestra una tabla seleccionable con todos los posts/páginas que tienen datos encontrados
