@@ -942,18 +942,7 @@ class LLM_Trace_Cleaner_Admin {
      * Limpiar logs de depuración
      */
     private function clear_debug_logs() {
-        // #region agent log
-        $debug_logs_before = get_option('llm_trace_cleaner_debug_logs', false);
-        error_log('LLM_TRACE_CLEANER_DEBUG: clear_debug_logs ENTRY - debug_logs_exists: ' . ($debug_logs_before !== false ? 'true' : 'false') . ', count: ' . (is_array($debug_logs_before) ? count($debug_logs_before) : 0));
-        // #endregion
-        
-        $result = delete_option('llm_trace_cleaner_debug_logs');
-        
-        // #region agent log
-        error_log('LLM_TRACE_CLEANER_DEBUG: delete_option result: ' . ($result ? 'true' : 'false'));
-        $debug_logs_after = get_option('llm_trace_cleaner_debug_logs', false);
-        error_log('LLM_TRACE_CLEANER_DEBUG: AFTER delete_option - debug_logs_exists: ' . ($debug_logs_after !== false ? 'true' : 'false') . ', count: ' . (is_array($debug_logs_after) ? count($debug_logs_after) : 0));
-        // #endregion
+        delete_option('llm_trace_cleaner_debug_logs');
     }
     
     /**
@@ -1136,40 +1125,10 @@ class LLM_Trace_Cleaner_Admin {
             exit;
         }
         
-        // #region agent log
-        $this->log_debug('DEBUG: Checking POST for clear_debug_log', array(
-            'post_isset' => isset($_POST['llm_trace_cleaner_clear_debug_log']),
-            'post_value' => isset($_POST['llm_trace_cleaner_clear_debug_log']) ? $_POST['llm_trace_cleaner_clear_debug_log'] : 'not_set',
-            'all_post_keys' => array_keys($_POST),
-            'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown'
-        ));
-        // #endregion
-        
         if (isset($_POST['llm_trace_cleaner_clear_debug_log']) && check_admin_referer('llm_trace_cleaner_clear_debug_log')) {
-            // #region agent log
-            $this->log_debug('DEBUG: check_admin_referer PASSED, calling clear_debug_logs', array());
-            // #endregion
-            
             $this->clear_debug_logs();
-            
-            // #region agent log
-            $debug_logs_after = get_option('llm_trace_cleaner_debug_logs', false);
-            $this->log_debug('DEBUG: AFTER clear_debug_logs', array(
-                'debug_logs_exists' => $debug_logs_after !== false,
-                'debug_logs_count' => is_array($debug_logs_after) ? count($debug_logs_after) : 0
-            ));
-            // #endregion
-            
             wp_redirect(add_query_arg('llm_trace_cleaner_debug_cleared', '1', admin_url('admin.php?page=llm-trace-cleaner&tab=debug')));
             exit;
-        } else {
-            // #region agent log
-            $referer_check = isset($_POST['llm_trace_cleaner_clear_debug_log']);
-            $this->log_debug('DEBUG: check_admin_referer FAILED or POST not set', array(
-                'post_isset' => $referer_check,
-                'check_admin_referer_result' => isset($_POST['llm_trace_cleaner_clear_debug_log']) ? 'checked' : 'not_checked'
-            ));
-            // #endregion
         }
         
         // Mostrar mensajes de éxito después del redirect
