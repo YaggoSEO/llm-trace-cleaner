@@ -1495,8 +1495,8 @@ class LLM_Trace_Cleaner_Admin {
                     <div style="margin-bottom: 20px;">
                         <form method="post" action="" style="display: inline-block; margin-right: 10px;" id="llm-trace-cleaner-clear-error-form">
                             <?php wp_nonce_field('llm_trace_cleaner_clear_error_log'); ?>
+                            <input type="hidden" name="llm_trace_cleaner_clear_error_log" value="1">
                             <input type="submit" 
-                                   name="llm_trace_cleaner_clear_error_log" 
                                    class="button button-secondary" 
                                    value="<?php echo esc_attr__('Limpiar logs de errores', 'llm-trace-cleaner'); ?>"
                                    id="llm-trace-cleaner-clear-error-btn">
@@ -1554,8 +1554,8 @@ class LLM_Trace_Cleaner_Admin {
                     <div style="margin-bottom: 20px;">
                         <form method="post" action="" style="display: inline-block; margin-right: 10px;" id="llm-trace-cleaner-clear-debug-form">
                             <?php wp_nonce_field('llm_trace_cleaner_clear_debug_log'); ?>
+                            <input type="hidden" name="llm_trace_cleaner_clear_debug_log" value="1">
                             <input type="submit" 
-                                   name="llm_trace_cleaner_clear_debug_log" 
                                    class="button button-secondary" 
                                    value="<?php echo esc_attr__('Limpiar logs de depuración', 'llm-trace-cleaner'); ?>"
                                    id="llm-trace-cleaner-clear-debug-btn">
