@@ -123,7 +123,45 @@ class LLM_Trace_Cleaner_Cleaner {
         
         // Limpiar Unicode si está activado
         if ($options['clean_unicode']) {
+            // #region agent log
+            $log_file = dirname(dirname(__DIR__)) . '/.cursor/debug.log';
+            $unicode_before_clean = preg_match_all('/\x{200B}/u', $cleaned_html);
+            $log_data = json_encode(array(
+                'sessionId' => 'debug-session',
+                'runId' => 'run1',
+                'hypothesisId' => 'B',
+                'location' => 'class-llm-trace-cleaner-cleaner.php:125',
+                'message' => 'Antes de remove_invisible_unicode',
+                'data' => array(
+                    'clean_unicode_enabled' => $options['clean_unicode'],
+                    'unicode_200B_count' => $unicode_before_clean,
+                    'html_length' => strlen($cleaned_html)
+                ),
+                'timestamp' => round(microtime(true) * 1000)
+            )) . "\n";
+            @file_put_contents($log_file, $log_data, FILE_APPEND);
+            // #endregion
+            
             $cleaned_html = $this->remove_invisible_unicode($cleaned_html, $options);
+            
+            // #region agent log
+            $unicode_after_clean = preg_match_all('/\x{200B}/u', $cleaned_html);
+            $log_data = json_encode(array(
+                'sessionId' => 'debug-session',
+                'runId' => 'run1',
+                'hypothesisId' => 'B',
+                'location' => 'class-llm-trace-cleaner-cleaner.php:127',
+                'message' => 'Después de remove_invisible_unicode',
+                'data' => array(
+                    'unicode_200B_before' => $unicode_before_clean,
+                    'unicode_200B_after' => $unicode_after_clean,
+                    'unicode_removed' => ($unicode_before_clean > $unicode_after_clean),
+                    'html_length' => strlen($cleaned_html)
+                ),
+                'timestamp' => round(microtime(true) * 1000)
+            )) . "\n";
+            @file_put_contents($log_file, $log_data, FILE_APPEND);
+            // #endregion
         }
         
         // Limpiar referencias de contenido (ContentReference) si está activado
@@ -136,12 +174,57 @@ class LLM_Trace_Cleaner_Cleaner {
             $cleaned_html = $this->remove_utm_parameters($cleaned_html, $options);
         }
         
+        // #region agent log
+        $log_file = dirname(dirname(__DIR__)) . '/.cursor/debug.log';
+        $unicode_before_restore = preg_match_all('/\x{200B}/u', $cleaned_html);
+        $blocks_unicode_count = 0;
+        if (!empty($gutenberg_data['blocks'])) {
+            foreach ($gutenberg_data['blocks'] as $block) {
+                $blocks_unicode_count += preg_match_all('/\x{200B}/u', $block);
+            }
+        }
+        $log_data = json_encode(array(
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'C',
+            'location' => 'class-llm-trace-cleaner-cleaner.php:140',
+            'message' => 'Antes de restore_gutenberg_blocks',
+            'data' => array(
+                'unicode_200B_in_html' => $unicode_before_restore,
+                'blocks_count' => count($gutenberg_data['blocks']),
+                'unicode_200B_in_blocks' => $blocks_unicode_count,
+                'has_unicode_in_blocks' => ($blocks_unicode_count > 0)
+            ),
+            'timestamp' => round(microtime(true) * 1000)
+        )) . "\n";
+        @file_put_contents($log_file, $log_data, FILE_APPEND);
+        // #endregion
+        
         // Restaurar comentarios de bloques de Gutenberg después de la limpieza
         $cleaned_html = $this->restore_gutenberg_blocks(
             $cleaned_html, 
             $gutenberg_data['blocks'], 
             $gutenberg_data['placeholders']
         );
+        
+        // #region agent log
+        $unicode_after_restore = preg_match_all('/\x{200B}/u', $cleaned_html);
+        $log_data = json_encode(array(
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'C',
+            'location' => 'class-llm-trace-cleaner-cleaner.php:146',
+            'message' => 'Después de restore_gutenberg_blocks',
+            'data' => array(
+                'unicode_200B_before_restore' => $unicode_before_restore,
+                'unicode_200B_after_restore' => $unicode_after_restore,
+                'unicode_restored' => ($unicode_after_restore > $unicode_before_restore),
+                'unicode_restored_count' => ($unicode_after_restore - $unicode_before_restore)
+            ),
+            'timestamp' => round(microtime(true) * 1000)
+        )) . "\n";
+        @file_put_contents($log_file, $log_data, FILE_APPEND);
+        // #endregion
         
         return $cleaned_html;
     }
@@ -681,15 +764,47 @@ class LLM_Trace_Cleaner_Cleaner {
      * @return string
      */
     private function remove_invisible_unicode($html, $options = array()) {
+        // #region agent log
+        $log_file = dirname(dirname(__DIR__)) . '/.cursor/debug.log';
+        $unicode_200B_before = preg_match_all('/\x{200B}/u', $html);
+        $log_data = json_encode(array(
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'B',
+            'location' => 'class-llm-trace-cleaner-cleaner.php:683',
+            'message' => 'Inicio remove_invisible_unicode',
+            'data' => array(
+                'html_length' => strlen($html),
+                'unicode_200B_count' => $unicode_200B_before
+            ),
+            'timestamp' => round(microtime(true) * 1000)
+        )) . "\n";
+        @file_put_contents($log_file, $log_data, FILE_APPEND);
+        // #endregion
+        
         $map = apply_filters('llm_trace_cleaner_unicode_map', $this->invisible_unicode_map);
         if (empty($map) || !is_array($map)) {
+            // #region agent log
+            $log_data = json_encode(array(
+                'sessionId' => 'debug-session',
+                'runId' => 'run1',
+                'hypothesisId' => 'B',
+                'location' => 'class-llm-trace-cleaner-cleaner.php:686',
+                'message' => 'Mapa Unicode vacío o inválido',
+                'data' => array('map_empty' => empty($map), 'is_array' => is_array($map)),
+                'timestamp' => round(microtime(true) * 1000)
+            )) . "\n";
+            @file_put_contents($log_file, $log_data, FILE_APPEND);
+            // #endregion
             return $html;
         }
         
+        $total_removed = 0;
         foreach ($map as $label => $pattern) {
             $count = 0;
             $html = preg_replace($pattern, '', $html, -1, $count);
             if ($count > 0) {
+                $total_removed += $count;
                 $this->increment_stat('unicode: ' . $label, $count);
                 
                 // Registrar ubicación genérica para Unicode (no podemos determinar ubicación exacta sin DOM)
@@ -702,6 +817,25 @@ class LLM_Trace_Cleaner_Cleaner {
                 }
             }
         }
+        
+        // #region agent log
+        $unicode_200B_after = preg_match_all('/\x{200B}/u', $html);
+        $log_data = json_encode(array(
+            'sessionId' => 'debug-session',
+            'runId' => 'run1',
+            'hypothesisId' => 'B',
+            'location' => 'class-llm-trace-cleaner-cleaner.php:704',
+            'message' => 'Fin remove_invisible_unicode',
+            'data' => array(
+                'unicode_200B_before' => $unicode_200B_before,
+                'unicode_200B_after' => $unicode_200B_after,
+                'total_removed' => $total_removed,
+                'html_length' => strlen($html)
+            ),
+            'timestamp' => round(microtime(true) * 1000)
+        )) . "\n";
+        @file_put_contents($log_file, $log_data, FILE_APPEND);
+        // #endregion
         
         // Asegurar que las entidades HTML estén correctamente formateadas después de eliminar Unicode
         // Decodificar entidades HTML que puedan haberse corrompido

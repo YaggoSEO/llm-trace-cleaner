@@ -506,7 +506,49 @@ class LLM_Trace_Cleaner_Admin {
                         $clean_options['clean_utm_parameters'] = isset($selected['utm_parameters']) && $selected['utm_parameters'];
                     }
                     
+                    // #region agent log
+                    $log_file = __DIR__ . '/../../.cursor/debug.log';
+                    $log_data = json_encode(array(
+                        'sessionId' => 'debug-session',
+                        'runId' => 'run1',
+                        'hypothesisId' => 'A',
+                        'location' => 'class-llm-trace-cleaner-admin.php:509',
+                        'message' => 'Opciones de limpieza antes de clean_html',
+                        'data' => array(
+                            'post_id' => $post_id,
+                            'clean_options' => $clean_options,
+                            'has_selected_clean_types' => isset($_POST['selected_clean_types']),
+                            'selected_raw' => isset($_POST['selected_clean_types']) ? $_POST['selected_clean_types'] : null
+                        ),
+                        'timestamp' => round(microtime(true) * 1000)
+                    )) . "\n";
+                    @file_put_contents($log_file, $log_data, FILE_APPEND);
+                    // #endregion
+                    
                     $cleaned_content = $cleaner->clean_html($original_content, $clean_options);
+                    
+                    // #region agent log
+                    $unicode_before = preg_match_all('/\x{200B}/u', $original_content);
+                    $unicode_after = preg_match_all('/\x{200B}/u', $cleaned_content);
+                    $log_data = json_encode(array(
+                        'sessionId' => 'debug-session',
+                        'runId' => 'run1',
+                        'hypothesisId' => 'B,C',
+                        'location' => 'class-llm-trace-cleaner-admin.php:511',
+                        'message' => 'Comparación de contenido después de clean_html',
+                        'data' => array(
+                            'post_id' => $post_id,
+                            'content_changed' => ($cleaned_content !== $original_content),
+                            'original_length' => strlen($original_content),
+                            'cleaned_length' => strlen($cleaned_content),
+                            'unicode_200B_before' => $unicode_before,
+                            'unicode_200B_after' => $unicode_after,
+                            'unicode_removed' => ($unicode_before > $unicode_after)
+                        ),
+                        'timestamp' => round(microtime(true) * 1000)
+                    )) . "\n";
+                    @file_put_contents($log_file, $log_data, FILE_APPEND);
+                    // #endregion
                     
                     if ($cleaned_content !== $original_content) {
                         // Medir tiempo de actualización
