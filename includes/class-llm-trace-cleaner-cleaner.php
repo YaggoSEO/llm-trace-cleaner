@@ -226,6 +226,16 @@ class LLM_Trace_Cleaner_Cleaner {
             $gutenberg_data['blocks'] = $cleaned_blocks;
         }
         
+        // Limpiar parámetros UTM en los bloques de Gutenberg antes de restaurarlos
+        // Esto evita que los parámetros UTM se reintroduzcan al restaurar los bloques
+        if ($options['clean_utm_parameters'] && !empty($gutenberg_data['blocks'])) {
+            $cleaned_blocks = array();
+            foreach ($gutenberg_data['blocks'] as $block) {
+                $cleaned_blocks[] = $this->remove_utm_parameters($block, $options);
+            }
+            $gutenberg_data['blocks'] = $cleaned_blocks;
+        }
+        
         // Restaurar comentarios de bloques de Gutenberg después de la limpieza
         $cleaned_html = $this->restore_gutenberg_blocks(
             $cleaned_html, 
