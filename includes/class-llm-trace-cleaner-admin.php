@@ -507,7 +507,11 @@ class LLM_Trace_Cleaner_Admin {
                     }
                     
                     // #region agent log
-                    $log_file = __DIR__ . '/../../.cursor/debug.log';
+                    $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
+                    if (!is_dir($log_dir)) {
+                        @mkdir($log_dir, 0755, true);
+                    }
+                    $log_file = $log_dir . '/debug.log';
                     $log_data = json_encode(array(
                         'sessionId' => 'debug-session',
                         'runId' => 'run1',

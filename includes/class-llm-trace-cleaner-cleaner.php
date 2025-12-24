@@ -124,7 +124,11 @@ class LLM_Trace_Cleaner_Cleaner {
         // Limpiar Unicode si está activado
         if ($options['clean_unicode']) {
             // #region agent log
-            $log_file = dirname(dirname(__DIR__)) . '/.cursor/debug.log';
+            $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
+            if (!is_dir($log_dir)) {
+                @mkdir($log_dir, 0755, true);
+            }
+            $log_file = $log_dir . '/debug.log';
             $unicode_before_clean = preg_match_all('/\x{200B}/u', $cleaned_html);
             $log_data = json_encode(array(
                 'sessionId' => 'debug-session',
@@ -175,7 +179,11 @@ class LLM_Trace_Cleaner_Cleaner {
         }
         
         // #region agent log
-        $log_file = dirname(dirname(__DIR__)) . '/.cursor/debug.log';
+        $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
+        if (!is_dir($log_dir)) {
+            @mkdir($log_dir, 0755, true);
+        }
+        $log_file = $log_dir . '/debug.log';
         $unicode_before_restore = preg_match_all('/\x{200B}/u', $cleaned_html);
         $blocks_unicode_count = 0;
         if (!empty($gutenberg_data['blocks'])) {
@@ -765,7 +773,11 @@ class LLM_Trace_Cleaner_Cleaner {
      */
     private function remove_invisible_unicode($html, $options = array()) {
         // #region agent log
-        $log_file = dirname(dirname(__DIR__)) . '/.cursor/debug.log';
+        $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
+        if (!is_dir($log_dir)) {
+            @mkdir($log_dir, 0755, true);
+        }
+        $log_file = $log_dir . '/debug.log';
         $unicode_200B_before = preg_match_all('/\x{200B}/u', $html);
         $log_data = json_encode(array(
             'sessionId' => 'debug-session',
