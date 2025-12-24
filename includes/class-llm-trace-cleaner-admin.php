@@ -235,6 +235,25 @@ class LLM_Trace_Cleaner_Admin {
         
         $total = count($post_ids);
         
+        // Obtener opciones de limpieza seleccionadas por el usuario (si vienen desde análisis previo)
+        $clean_options_used = array(
+            'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false) ? 1 : 0,
+            'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false) ? 1 : 0,
+            'clean_content_references' => get_option('llm_trace_cleaner_clean_content_references', true) ? 1 : 0,
+            'clean_utm_parameters' => get_option('llm_trace_cleaner_clean_utm_parameters', true) ? 1 : 0,
+        );
+        
+        // Si viene desde análisis previo, usar selección del usuario
+        if (isset($_POST['selected_clean_types'])) {
+            $selected = json_decode(stripslashes($_POST['selected_clean_types']), true);
+            if ($selected !== null && is_array($selected)) {
+                $clean_options_used['clean_attributes'] = !empty($selected['attributes']) ? 1 : 0;
+                $clean_options_used['clean_unicode'] = !empty($selected['unicode']) ? 1 : 0;
+                $clean_options_used['clean_content_references'] = !empty($selected['content_references']) ? 1 : 0;
+                $clean_options_used['clean_utm_parameters'] = !empty($selected['utm_parameters']) ? 1 : 0;
+            }
+        }
+        
         // Inicializar el estado del proceso
         $process_id = 'llm_trace_clean_' . time();
         $transient_key = 'llm_trace_cleaner_process_' . $process_id;
@@ -247,6 +266,7 @@ class LLM_Trace_Cleaner_Admin {
             'modified' => 0,
             'stats' => array(),
             'started' => current_time('mysql'),
+            'clean_options_used' => $clean_options_used, // Guardar opciones usadas para telemetría
             // NO guardar post_ids aquí - se recalcularán cuando sea necesario
         );
         
@@ -489,6 +509,7 @@ class LLM_Trace_Cleaner_Admin {
                     
                     $original_content = $post->post_content;
                     
+                    // Obtener opciones de limpieza desde process_state (si están guardadas) o desde configuración
                     $clean_options = array(
                         'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false),
                         'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false),
@@ -497,8 +518,15 @@ class LLM_Trace_Cleaner_Admin {
                         'track_locations' => true
                     );
                     
-                    // Si viene desde análisis previo, usar selección del usuario
-                    if (isset($_POST['selected_clean_types'])) {
+                    // Si hay opciones guardadas en process_state, usarlas (tienen prioridad)
+                    if (isset($process_state['clean_options_used']) && is_array($process_state['clean_options_used'])) {
+                        $clean_options['clean_attributes'] = !empty($process_state['clean_options_used']['clean_attributes']);
+                        $clean_options['clean_unicode'] = !empty($process_state['clean_options_used']['clean_unicode']);
+                        $clean_options['clean_content_references'] = !empty($process_state['clean_options_used']['clean_content_references']);
+                        $clean_options['clean_utm_parameters'] = !empty($process_state['clean_options_used']['clean_utm_parameters']);
+                    }
+                    // Si no hay opciones guardadas pero viene desde análisis previo, usar selección del usuario
+                    elseif (isset($_POST['selected_clean_types'])) {
                         $selected = json_decode(stripslashes($_POST['selected_clean_types']), true);
                         if ($selected !== null && is_array($selected)) {
                             $clean_options['clean_attributes'] = !empty($selected['attributes']);
@@ -817,8 +845,8 @@ class LLM_Trace_Cleaner_Admin {
                     $content_references_found[$key] = $val;
                     $content_references_count += $val;
                 }
-                // Detectar UTM parameters
-                elseif (strpos($key, 'utm_parameters') === 0 || strpos($key, 'utm') === 0) {
+                // Detectar UTM parameters (verificar primero la coincidencia exacta para evitar falsos positivos)
+                elseif (strpos($key, 'utm_parameters') === 0 || ($key === 'utm_parameters' || strpos($key, 'utm_') === 0)) {
                     $utm_parameters_found[$key] = $val;
                     $utm_parameters_count += $val;
                 }
@@ -844,20 +872,35 @@ class LLM_Trace_Cleaner_Admin {
         $total_items_removed = $attributes_count + $unicode_count + $content_references_count + $utm_parameters_count;
         $avg_items_per_modified_post = $modified > 0 ? round($total_items_removed / $modified, 2) : 0;
         
-        // Obtener opciones de limpieza usadas (anónimas)
-        $clean_options_used = array(
-            'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false) ? 1 : 0,
-            'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false) ? 1 : 0,
-            'clean_content_references' => get_option('llm_trace_cleaner_clean_content_references', true) ? 1 : 0,
-            'clean_utm_parameters' => get_option('llm_trace_cleaner_clean_utm_parameters', true) ? 1 : 0,
-        );
+        // Obtener opciones de limpieza usadas desde process_state (si están guardadas) o desde configuración
+        if (isset($process_state['clean_options_used']) && is_array($process_state['clean_options_used'])) {
+            $clean_options_used = $process_state['clean_options_used'];
+            // Asegurar que sean números (0 o 1) en lugar de booleanos
+            $clean_options_used = array(
+                'clean_attributes' => !empty($clean_options_used['clean_attributes']) ? 1 : 0,
+                'clean_unicode' => !empty($clean_options_used['clean_unicode']) ? 1 : 0,
+                'clean_content_references' => !empty($clean_options_used['clean_content_references']) ? 1 : 0,
+                'clean_utm_parameters' => !empty($clean_options_used['clean_utm_parameters']) ? 1 : 0,
+            );
+        } else {
+            // Fallback a opciones de configuración si no están guardadas en process_state
+            $clean_options_used = array(
+                'clean_attributes' => get_option('llm_trace_cleaner_clean_attributes', false) ? 1 : 0,
+                'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false) ? 1 : 0,
+                'clean_content_references' => get_option('llm_trace_cleaner_clean_content_references', true) ? 1 : 0,
+                'clean_utm_parameters' => get_option('llm_trace_cleaner_clean_utm_parameters', true) ? 1 : 0,
+            );
+        }
         
         // Calcular tiempo de procesamiento si está disponible
         $processing_time = 0;
         if (isset($process_state['started'])) {
+            // El campo 'started' está en formato MySQL (Y-m-d H:i:s)
             $start_time = strtotime($process_state['started']);
             $end_time = time();
-            $processing_time = $end_time - $start_time; // En segundos
+            if ($start_time !== false && $start_time > 0) {
+                $processing_time = max(0, $end_time - $start_time); // En segundos, mínimo 0
+            }
         }
         
         // Preparar payload con estructura detallada y enriquecida
@@ -908,6 +951,53 @@ class LLM_Trace_Cleaner_Admin {
             // Stats completo (compatibilidad hacia atrás)
             'stats'                      => array_merge($attributes_found, $unicode_found, $content_references_found, $utm_parameters_found, $other_stats),
         );
+        
+        // Validar que todos los campos requeridos estén presentes
+        $required_fields = array(
+            'install_id', 'plugin_version', 'wp_version', 'php_version',
+            'total', 'processed', 'modified', 'timestamp', 'server_timestamp',
+            'total_attributes_removed', 'total_unicode_removed', 
+            'total_content_references_removed', 'total_utm_parameters_removed',
+            'total_items_removed', 'modification_ratio', 'clean_options_used'
+        );
+        
+        foreach ($required_fields as $field) {
+            if (!isset($payload[$field])) {
+                $this->log_error('Campo faltante en telemetría: ' . $field, 'send_anonymous_telemetry');
+            }
+        }
+        
+        // Asegurar que los arrays siempre existan (aunque estén vacíos)
+        if (!isset($payload['attribute_types_found']) || !is_array($payload['attribute_types_found'])) {
+            $payload['attribute_types_found'] = array();
+        }
+        if (!isset($payload['unicode_types_found']) || !is_array($payload['unicode_types_found'])) {
+            $payload['unicode_types_found'] = array();
+        }
+        if (!isset($payload['content_reference_types_found']) || !is_array($payload['content_reference_types_found'])) {
+            $payload['content_reference_types_found'] = array();
+        }
+        if (!isset($payload['utm_parameter_types_found']) || !is_array($payload['utm_parameter_types_found'])) {
+            $payload['utm_parameter_types_found'] = array();
+        }
+        if (!isset($payload['attributes_detail']) || !is_array($payload['attributes_detail'])) {
+            $payload['attributes_detail'] = array();
+        }
+        if (!isset($payload['unicode_detail']) || !is_array($payload['unicode_detail'])) {
+            $payload['unicode_detail'] = array();
+        }
+        if (!isset($payload['content_references_detail']) || !is_array($payload['content_references_detail'])) {
+            $payload['content_references_detail'] = array();
+        }
+        if (!isset($payload['utm_parameters_detail']) || !is_array($payload['utm_parameters_detail'])) {
+            $payload['utm_parameters_detail'] = array();
+        }
+        if (!isset($payload['other_stats']) || !is_array($payload['other_stats'])) {
+            $payload['other_stats'] = array();
+        }
+        if (!isset($payload['stats']) || !is_array($payload['stats'])) {
+            $payload['stats'] = array();
+        }
         
         // Enviar de forma asíncrona (no bloqueante)
         wp_remote_post($endpoint, array(
