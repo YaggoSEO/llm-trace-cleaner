@@ -375,6 +375,12 @@ set_time_limit(300);
 
 ## 📝 Changelog
 
+### 1.6.4
+- **Corrección crítica**: Limpieza de parámetros UTM y caracteres Unicode en bloques de Gutenberg y page builders antes de restaurarlos. Los bloques se extraían antes de la limpieza y se restauraban después, reintroduciendo los elementos que debían eliminarse. Ahora se limpian también dentro de los bloques antes de restaurarlos.
+- **Soporte completo para page builders**: Detección y limpieza en más de 30 page builders y extensiones de Gutenberg, incluyendo Elementor, Divi, Bricks, WPBakery, Beaver Builder, Oxygen, Thrive Architect, Brizy, SiteOrigin, Kadence, GeneratePress, Astra, Spectra, Stackable, Zion, Live Composer, Themify, Cornerstone, Fusion Builder, KingComposer, Qubely, Gutentor, Neve, CoBlocks, SeedProd, GreenShift, Getwid, Atomic Blocks, Advanced Gutenberg, Pootle, MotoPress, BoldGrid, Page Builder Sandwich, WP Page Builder, Visual Composer Website Builder, y Gutenberg Block Collection.
+- **Mejoras en logs de depuración**: Sistema de logging mejorado que captura información detallada sobre la limpieza de UTM y Unicode, incluyendo conteos antes/después, detección de elementos en bloques de page builders, y opciones de limpieza aplicadas. Esto facilita el diagnóstico cuando los usuarios reportan problemas.
+- **Limpieza de código**: Eliminación de código de depuración temporal y logs innecesarios.
+
 ### 1.6.3
 - Reorganización de la interfaz del Sistema de Actualizaciones: información del updater integrada en la tabla principal, eliminada fila "Token de GitHub" para repos públicos
 - Correcciones: botón "Limpiar todos los logs" corregido, validación mejorada para evitar fechas/horas duplicadas o en blanco en logs

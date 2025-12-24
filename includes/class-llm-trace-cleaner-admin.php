@@ -499,38 +499,7 @@ class LLM_Trace_Cleaner_Admin {
                     
                     // Si viene desde análisis previo, usar selección del usuario
                     if (isset($_POST['selected_clean_types'])) {
-                        $selected_raw = stripslashes($_POST['selected_clean_types']);
-                        $selected = json_decode($selected_raw, true);
-                        $json_error = json_last_error();
-                        
-                        // #region agent log - Debug del JSON
-                        $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
-                        if (!is_dir($log_dir)) {
-                            @mkdir($log_dir, 0755, true);
-                        }
-                        $log_file = $log_dir . '/debug.log';
-                        $log_data = json_encode(array(
-                            'sessionId' => 'debug-session',
-                            'runId' => 'run2',
-                            'hypothesisId' => 'A',
-                            'location' => 'class-llm-trace-cleaner-admin.php:501',
-                            'message' => 'Parseando selected_clean_types del POST',
-                            'data' => array(
-                                'post_id' => $post_id,
-                                'selected_raw' => $selected_raw,
-                                'selected_decoded' => $selected,
-                                'json_error' => $json_error,
-                                'json_error_msg' => json_last_error_msg(),
-                                'has_unicode_key' => isset($selected['unicode']),
-                                'unicode_value' => isset($selected['unicode']) ? $selected['unicode'] : 'NOT_SET',
-                                'unicode_type' => isset($selected['unicode']) ? gettype($selected['unicode']) : 'NOT_SET',
-                                'unicode_bool' => isset($selected['unicode']) ? (bool)$selected['unicode'] : false
-                            ),
-                            'timestamp' => round(microtime(true) * 1000)
-                        )) . "\n";
-                        @file_put_contents($log_file, $log_data, FILE_APPEND);
-                        // #endregion
-                        
+                        $selected = json_decode(stripslashes($_POST['selected_clean_types']), true);
                         if ($selected !== null && is_array($selected)) {
                             $clean_options['clean_attributes'] = !empty($selected['attributes']);
                             $clean_options['clean_unicode'] = !empty($selected['unicode']);
@@ -539,56 +508,48 @@ class LLM_Trace_Cleaner_Admin {
                         }
                     }
                     
-                    // #region agent log
-                    $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
-                    if (!is_dir($log_dir)) {
-                        @mkdir($log_dir, 0755, true);
-                    }
-                    $log_file = $log_dir . '/debug.log';
-                    $log_data = json_encode(array(
-                        'sessionId' => 'debug-session',
-                        'runId' => 'run2',
-                        'hypothesisId' => 'A',
-                        'location' => 'class-llm-trace-cleaner-admin.php:532',
-                        'message' => 'Opciones de limpieza antes de clean_html',
-                        'data' => array(
-                            'post_id' => $post_id,
-                            'clean_options' => $clean_options,
-                            'clean_unicode_value' => $clean_options['clean_unicode'],
-                            'clean_unicode_type' => gettype($clean_options['clean_unicode']),
-                            'clean_unicode_bool' => (bool)$clean_options['clean_unicode'],
-                            'has_selected_clean_types' => isset($_POST['selected_clean_types']),
-                            'selected_raw' => isset($_POST['selected_clean_types']) ? $_POST['selected_clean_types'] : null
-                        ),
-                        'timestamp' => round(microtime(true) * 1000)
-                    )) . "\n";
-                    @file_put_contents($log_file, $log_data, FILE_APPEND);
-                    // #endregion
-                    
                     $cleaned_content = $cleaner->clean_html($original_content, $clean_options);
                     
-                    // #region agent log
-                    $unicode_before = preg_match_all('/\x{200B}/u', $original_content);
-                    $unicode_after = preg_match_all('/\x{200B}/u', $cleaned_content);
-                    $log_data = json_encode(array(
-                        'sessionId' => 'debug-session',
-                        'runId' => 'run1',
-                        'hypothesisId' => 'B,C',
-                        'location' => 'class-llm-trace-cleaner-admin.php:511',
-                        'message' => 'Comparación de contenido después de clean_html',
-                        'data' => array(
+                    // Log de depuración mejorado para diagnóstico cuando hay cambios
+                    if ($cleaned_content !== $original_content) {
+                        // Detectar qué tipo de limpieza se aplicó
+                        $stats = $cleaner->get_last_stats();
+                        $has_unicode = preg_match_all('/\x{200B}/u', $original_content) > 0;
+                        $has_utm = preg_match_all('/[?&]utm_[^=&\s"\']+/i', $original_content) > 0;
+                        
+                        $this->log_debug('Contenido modificado durante limpieza', array(
                             'post_id' => $post_id,
-                            'content_changed' => ($cleaned_content !== $original_content),
+                            'post_title' => $post->post_title,
+                            'options' => $clean_options,
                             'original_length' => strlen($original_content),
                             'cleaned_length' => strlen($cleaned_content),
-                            'unicode_200B_before' => $unicode_before,
-                            'unicode_200B_after' => $unicode_after,
-                            'unicode_removed' => ($unicode_before > $unicode_after)
-                        ),
-                        'timestamp' => round(microtime(true) * 1000)
-                    )) . "\n";
-                    @file_put_contents($log_file, $log_data, FILE_APPEND);
-                    // #endregion
+                            'unicode_detected' => $has_unicode,
+                            'unicode_before' => preg_match_all('/\x{200B}/u', $original_content),
+                            'unicode_after' => preg_match_all('/\x{200B}/u', $cleaned_content),
+                            'utm_detected' => $has_utm,
+                            'utm_before' => preg_match_all('/[?&]utm_[^=&\s"\']+/i', $original_content),
+                            'utm_after' => preg_match_all('/[?&]utm_[^=&\s"\']+/i', $cleaned_content),
+                            'stats' => $stats,
+                            'has_selected_clean_types' => isset($_POST['selected_clean_types'])
+                        ));
+                    } elseif (!empty($clean_options['clean_unicode']) || !empty($clean_options['clean_utm_parameters'])) {
+                        // Log cuando se esperaba limpieza pero no hubo cambios
+                        $has_unicode = preg_match_all('/\x{200B}/u', $original_content) > 0;
+                        $has_utm = preg_match_all('/[?&]utm_[^=&\s"\']+/i', $original_content) > 0;
+                        
+                        if ($has_unicode || $has_utm) {
+                            $this->log_debug('Limpieza activada pero sin cambios detectados', array(
+                                'post_id' => $post_id,
+                                'post_title' => $post->post_title,
+                                'options' => $clean_options,
+                                'unicode_detected' => $has_unicode,
+                                'unicode_count' => preg_match_all('/\x{200B}/u', $original_content),
+                                'utm_detected' => $has_utm,
+                                'utm_count' => preg_match_all('/[?&]utm_[^=&\s"\']+/i', $original_content),
+                                'note' => 'Puede indicar que los elementos están dentro de bloques de page builders'
+                            ));
+                        }
+                    }
                     
                     if ($cleaned_content !== $original_content) {
                         // Medir tiempo de actualización
