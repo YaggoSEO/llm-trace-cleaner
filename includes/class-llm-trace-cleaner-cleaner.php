@@ -178,35 +178,15 @@ class LLM_Trace_Cleaner_Cleaner {
             $cleaned_html = $this->remove_utm_parameters($cleaned_html, $options);
         }
         
-        // #region agent log
-        $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
-        if (!is_dir($log_dir)) {
-            @mkdir($log_dir, 0755, true);
-        }
-        $log_file = $log_dir . '/debug.log';
-        $unicode_before_restore = preg_match_all('/\x{200B}/u', $cleaned_html);
-        $blocks_unicode_count = 0;
-        if (!empty($gutenberg_data['blocks'])) {
+        // Limpiar Unicode en los bloques de Gutenberg antes de restaurarlos
+        // Esto evita que los caracteres Unicode se reintroduzcan al restaurar los bloques
+        if ($options['clean_unicode'] && !empty($gutenberg_data['blocks'])) {
+            $cleaned_blocks = array();
             foreach ($gutenberg_data['blocks'] as $block) {
-                $blocks_unicode_count += preg_match_all('/\x{200B}/u', $block);
+                $cleaned_blocks[] = $this->remove_invisible_unicode($block, $options);
             }
+            $gutenberg_data['blocks'] = $cleaned_blocks;
         }
-        $log_data = json_encode(array(
-            'sessionId' => 'debug-session',
-            'runId' => 'run1',
-            'hypothesisId' => 'C',
-            'location' => 'class-llm-trace-cleaner-cleaner.php:140',
-            'message' => 'Antes de restore_gutenberg_blocks',
-            'data' => array(
-                'unicode_200B_in_html' => $unicode_before_restore,
-                'blocks_count' => count($gutenberg_data['blocks']),
-                'unicode_200B_in_blocks' => $blocks_unicode_count,
-                'has_unicode_in_blocks' => ($blocks_unicode_count > 0)
-            ),
-            'timestamp' => round(microtime(true) * 1000)
-        )) . "\n";
-        @file_put_contents($log_file, $log_data, FILE_APPEND);
-        // #endregion
         
         // Restaurar comentarios de bloques de Gutenberg después de la limpieza
         $cleaned_html = $this->restore_gutenberg_blocks(
@@ -214,25 +194,6 @@ class LLM_Trace_Cleaner_Cleaner {
             $gutenberg_data['blocks'], 
             $gutenberg_data['placeholders']
         );
-        
-        // #region agent log
-        $unicode_after_restore = preg_match_all('/\x{200B}/u', $cleaned_html);
-        $log_data = json_encode(array(
-            'sessionId' => 'debug-session',
-            'runId' => 'run1',
-            'hypothesisId' => 'C',
-            'location' => 'class-llm-trace-cleaner-cleaner.php:146',
-            'message' => 'Después de restore_gutenberg_blocks',
-            'data' => array(
-                'unicode_200B_before_restore' => $unicode_before_restore,
-                'unicode_200B_after_restore' => $unicode_after_restore,
-                'unicode_restored' => ($unicode_after_restore > $unicode_before_restore),
-                'unicode_restored_count' => ($unicode_after_restore - $unicode_before_restore)
-            ),
-            'timestamp' => round(microtime(true) * 1000)
-        )) . "\n";
-        @file_put_contents($log_file, $log_data, FILE_APPEND);
-        // #endregion
         
         return $cleaned_html;
     }
@@ -308,6 +269,138 @@ class LLM_Trace_Cleaner_Cleaner {
         // RankMath FAQ Block - formato renderizado rank-math-block
         $html = $this->extract_blocks_by_class($html, 'rank-math-block', $blocks, $placeholders, $counter);
         
+        // Page Builders: Extraer bloques de todos los page builders conocidos
+        // Estos page builders generan estructuras complejas que pueden contener caracteres Unicode
+        
+        // Elementor
+        $html = $this->extract_blocks_by_class($html, 'elementor-element', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'elementor-widget', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'elementor-section', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'elementor-container', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'elementor-column', $blocks, $placeholders, $counter);
+        
+        // Divi Builder
+        $html = $this->extract_blocks_by_class($html, 'et_pb_section', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'et_pb_row', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'et_pb_column', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'et_pb_module', $blocks, $placeholders, $counter);
+        
+        // Bricks Builder (usa prefijos de clase como brxe-container, brxe-section, etc.)
+        $html = $this->extract_blocks_by_class_prefix($html, 'brxe-', $blocks, $placeholders, $counter);
+        
+        // WPBakery (Visual Composer)
+        $html = $this->extract_blocks_by_class($html, 'vc_row', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'vc_column', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'wpb_', $blocks, $placeholders, $counter);
+        
+        // Beaver Builder
+        $html = $this->extract_blocks_by_class($html, 'fl-row', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'fl-col', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'fl-module', $blocks, $placeholders, $counter);
+        
+        // Oxygen Builder (usa prefijos de clase como oxy-*)
+        $html = $this->extract_blocks_by_class_prefix($html, 'oxy-', $blocks, $placeholders, $counter);
+        
+        // Thrive Architect
+        $html = $this->extract_blocks_by_class_prefix($html, 'thrv_', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'tve_', $blocks, $placeholders, $counter);
+        
+        // Brizy Builder (usa prefijos de clase como brz-*)
+        $html = $this->extract_blocks_by_class_prefix($html, 'brz-', $blocks, $placeholders, $counter);
+        
+        // SiteOrigin Page Builder
+        $html = $this->extract_blocks_by_class_prefix($html, 'siteorigin-panels-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'panel-grid', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'panel-row-style', $blocks, $placeholders, $counter);
+        
+        // Kadence Blocks
+        $html = $this->extract_blocks_by_class_prefix($html, 'kt-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class_prefix($html, 'kadence-', $blocks, $placeholders, $counter);
+        
+        // GeneratePress Blocks
+        $html = $this->extract_blocks_by_class_prefix($html, 'gb-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'generateblocks-', $blocks, $placeholders, $counter);
+        
+        // Astra Blocks
+        $html = $this->extract_blocks_by_class_prefix($html, 'ast-', $blocks, $placeholders, $counter);
+        
+        // Spectra (Ultimate Addons for Gutenberg)
+        $html = $this->extract_blocks_by_class_prefix($html, 'uagb-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'spectra-', $blocks, $placeholders, $counter);
+        
+        // Stackable
+        $html = $this->extract_blocks_by_class_prefix($html, 'stk-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'wp-block-stk-', $blocks, $placeholders, $counter);
+        
+        // Zion Builder
+        $html = $this->extract_blocks_by_class_prefix($html, 'zn-', $blocks, $placeholders, $counter);
+        
+        // Live Composer
+        $html = $this->extract_blocks_by_class_prefix($html, 'dslc-', $blocks, $placeholders, $counter);
+        
+        // Themify Builder
+        $html = $this->extract_blocks_by_class_prefix($html, 'themify_builder_', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'module-', $blocks, $placeholders, $counter);
+        
+        // Cornerstone (X Theme)
+        $html = $this->extract_blocks_by_class_prefix($html, 'x-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'cs-', $blocks, $placeholders, $counter);
+        
+        // Fusion Builder (Avada Theme)
+        $html = $this->extract_blocks_by_class_prefix($html, 'fusion-', $blocks, $placeholders, $counter);
+        $html = $this->extract_blocks_by_class($html, 'fusion_builder_', $blocks, $placeholders, $counter);
+        
+        // KingComposer
+        $html = $this->extract_blocks_by_class_prefix($html, 'kc-', $blocks, $placeholders, $counter);
+        
+        // Qubely
+        $html = $this->extract_blocks_by_class_prefix($html, 'qubely-', $blocks, $placeholders, $counter);
+        
+        // Gutentor
+        $html = $this->extract_blocks_by_class_prefix($html, 'gutentor-', $blocks, $placeholders, $counter);
+        
+        // Neve Blocks
+        $html = $this->extract_blocks_by_class_prefix($html, 'nv-', $blocks, $placeholders, $counter);
+        
+        // CoBlocks
+        $html = $this->extract_blocks_by_class($html, 'wp-block-coblocks-', $blocks, $placeholders, $counter);
+        
+        // SeedProd
+        $html = $this->extract_blocks_by_class_prefix($html, 'seedprod-', $blocks, $placeholders, $counter);
+        
+        // GreenShift (Animated Gutenberg Blocks)
+        $html = $this->extract_blocks_by_class_prefix($html, 'gspb_', $blocks, $placeholders, $counter);
+        
+        // Getwid (Gutenberg Blocks)
+        $html = $this->extract_blocks_by_class($html, 'wp-block-getwid-', $blocks, $placeholders, $counter);
+        
+        // Atomic Blocks
+        $html = $this->extract_blocks_by_class($html, 'wp-block-atomic-blocks-', $blocks, $placeholders, $counter);
+        
+        // Advanced Gutenberg
+        $html = $this->extract_blocks_by_class($html, 'wp-block-advgb-', $blocks, $placeholders, $counter);
+        
+        // Pootle Page Builder
+        $html = $this->extract_blocks_by_class_prefix($html, 'ppb-', $blocks, $placeholders, $counter);
+        
+        // MotoPress Content Editor
+        $html = $this->extract_blocks_by_class_prefix($html, 'mpce-', $blocks, $placeholders, $counter);
+        
+        // BoldGrid Post and Page Builder
+        $html = $this->extract_blocks_by_class_prefix($html, 'boldgrid-', $blocks, $placeholders, $counter);
+        
+        // Page Builder Sandwich
+        $html = $this->extract_blocks_by_class_prefix($html, 'pbs-', $blocks, $placeholders, $counter);
+        
+        // WP Page Builder (Themeum)
+        $html = $this->extract_blocks_by_class_prefix($html, 'wppb-', $blocks, $placeholders, $counter);
+        
+        // Visual Composer Website Builder (nueva versión)
+        $html = $this->extract_blocks_by_class_prefix($html, 'vce-', $blocks, $placeholders, $counter);
+        
+        // Gutenberg Block Collection
+        $html = $this->extract_blocks_by_class($html, 'wp-block-block-collection-', $blocks, $placeholders, $counter);
+        
         return array(
             'html' => $html,
             'blocks' => $blocks,
@@ -329,6 +422,62 @@ class LLM_Trace_Cleaner_Cleaner {
     private function extract_blocks_by_class($html, $class_name, &$blocks, &$placeholders, &$counter) {
         // Buscar todas las ocurrencias de divs con la clase específica
         $pattern = '/<div[^>]*class="[^"]*' . preg_quote($class_name, '/') . '[^"]*"[^>]*>/i';
+        
+        $offset = 0;
+        while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+            $match_pos = $matches[0][1];
+            
+            // Verificar que no esté dentro de un placeholder ya procesado
+            $before_match = substr($html, 0, $match_pos);
+            if (strpos($before_match, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_') !== false) {
+                // Verificar si el placeholder más cercano está después de este match
+                $last_placeholder_pos = strrpos($before_match, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_');
+                if ($last_placeholder_pos !== false) {
+                    $placeholder_end = strpos($html, ']]', $last_placeholder_pos);
+                    if ($placeholder_end !== false && $placeholder_end > $match_pos) {
+                        // Este match está dentro de un placeholder, saltarlo
+                        $offset = $match_pos + strlen($matches[0][0]);
+                        continue;
+                    }
+                }
+            }
+            
+            // Extraer el bloque completo desde esta posición
+            $full_block = $this->extract_complete_div_block($html, $match_pos);
+            
+            if ($full_block && strpos($full_block, '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_') === false) {
+                $placeholder = '[[LLM_TRACE_CLEANER_GUTENBERG_BLOCK_' . $counter . ']]';
+                
+                $blocks[] = $full_block;
+                $placeholders[] = $placeholder;
+                
+                // Reemplazar el bloque con el placeholder
+                $html = substr_replace($html, $placeholder, $match_pos, strlen($full_block));
+                
+                $counter++;
+                $offset = $match_pos + strlen($placeholder);
+            } else {
+                $offset = $match_pos + strlen($matches[0][0]);
+            }
+        }
+        
+        return $html;
+    }
+    
+    /**
+     * Extraer bloques completos por prefijo de clase CSS
+     * Útil para page builders como Bricks que usan prefijos (ej: brxe-container, brxe-section)
+     * 
+     * @param string $html HTML a procesar
+     * @param string $class_prefix Prefijo de clase CSS a buscar
+     * @param array &$blocks Array de bloques preservados (por referencia)
+     * @param array &$placeholders Array de placeholders (por referencia)
+     * @param int &$counter Contador de placeholders (por referencia)
+     * @return string HTML con bloques reemplazados por placeholders
+     */
+    private function extract_blocks_by_class_prefix($html, $class_prefix, &$blocks, &$placeholders, &$counter) {
+        // Buscar todas las ocurrencias de divs con clases que comienzan con el prefijo
+        $pattern = '/<div[^>]*class="[^"]*' . preg_quote($class_prefix, '/') . '[^"]*"[^>]*>/i';
         
         $offset = 0;
         while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset)) {
