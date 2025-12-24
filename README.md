@@ -35,75 +35,125 @@ Este plugin elimina automáticamente todos estos atributos, manteniendo tu conte
 
 El plugin elimina los siguientes atributos cuando aparecen en el HTML:
 
-- `data-start`
-- `data-end`
-- `data-is-last-node`
-- `data-is-only-node`
-- `data-llm`
-- `data-pm-slice`
-- `data-llm-id`
-- `data-llm-trace`
-- `data-original-text`
-- `data-source-text`
-- `data-highlight`
-- `data-entity`
-- `data-mention`
-- `data-offset-key`
-- `data-message-id`
-- `data-sender` / `data-role`
-- `data-token-index`
-- `data-model`
-- `data-render-timestamp`
-- `data-update-timestamp`
-- `data-confidence`
-- `data-temperature`
-- `data-seed`
-- `data-step`
-- `data-lang`
-- `data-format`
-- `data-annotation`
-- `data-reference`
-- `data-version`
-- `data-error`
-- `data-stream-id`
-- `data-chunk`
-- `data-context-id`
-- `data-user-id`
-- `data-ui-state`
-- Cualquier atributo `id` cuyo valor empiece por `model-response-message-contentr_`
+- `data-start` - **Uso**: Marca la posición inicial de un fragmento de texto en el contenido original. **Riesgo**: Expone la estructura interna del contenido generado, permitiendo identificar qué partes fueron generadas por el LLM y en qué orden.
+
+- `data-end` - **Uso**: Marca la posición final de un fragmento de texto. **Riesgo**: Junto con `data-start`, permite reconstruir la estructura completa del contenido generado, revelando información sobre el proceso de generación.
+
+- `data-is-last-node` - **Uso**: Indica si un nodo es el último en una secuencia. **Riesgo**: Expone la estructura de árbol del contenido, información técnica innecesaria para el usuario final.
+
+- `data-is-only-node` - **Uso**: Indica si un nodo es el único en su contenedor. **Riesgo**: Información estructural que puede ser utilizada para identificar patrones de generación del LLM.
+
+- `data-llm` - **Uso**: Marca genéricamente contenido generado por un LLM. **Riesgo**: Identifica directamente que el contenido fue generado por IA, lo que puede afectar la percepción de originalidad y SEO.
+
+- `data-pm-slice` - **Uso**: Identifica "slices" o fragmentos de contenido en editores ProseMirror. **Riesgo**: Expone la estructura interna del editor, información técnica que no debería estar en el HTML público.
+
+- `data-llm-id` - **Uso**: Identificador único asignado por el LLM a cada elemento. **Riesgo**: Permite rastrear y correlacionar contenido generado por el mismo LLM, potencialmente identificando la fuente del contenido.
+
+- `data-llm-trace` - **Uso**: Rastro completo del proceso de generación del LLM. **Riesgo**: Contiene información detallada sobre cómo se generó el contenido, incluyendo posibles metadatos sensibles.
+
+- `data-original-text` - **Uso**: Almacena el texto original antes de cualquier modificación. **Riesgo**: Puede exponer información que el usuario pensó que había eliminado o modificado, comprometiendo la privacidad.
+
+- `data-source-text` - **Uso**: Referencia al texto fuente utilizado para generar el contenido. **Riesgo**: Puede revelar fuentes de información o contenido que el usuario no quiere que sea visible públicamente.
+
+- `data-highlight` - **Uso**: Marca texto destacado o resaltado en la interfaz del LLM. **Riesgo**: Expone información sobre qué partes del contenido el LLM consideró importantes, información de interfaz que no debería estar en el HTML público.
+
+- `data-entity` - **Uso**: Identifica entidades nombradas (personas, lugares, organizaciones) detectadas por el LLM. **Riesgo**: Puede exponer información sobre cómo el LLM interpretó el contenido, incluyendo posibles datos estructurados sensibles.
+
+- `data-mention` - **Uso**: Marca menciones o referencias a otros elementos. **Riesgo**: Puede revelar relaciones internas o referencias cruzadas que el usuario no quiere exponer.
+
+- `data-offset-key` - **Uso**: Clave de desplazamiento para identificar la posición exacta en el editor. **Riesgo**: Información técnica del editor que puede ser utilizada para identificar la herramienta utilizada y su versión.
+
+- `data-message-id` - **Uso**: Identificador único de un mensaje en la conversación con el LLM. **Riesgo**: Permite correlacionar contenido con conversaciones específicas, potencialmente identificando sesiones de usuario.
+
+- `data-sender` / `data-role` - **Uso**: Indica quién envió el mensaje (usuario o asistente). **Riesgo**: Expone la estructura de la conversación, revelando qué partes fueron generadas por el LLM vs. escritas por el usuario.
+
+- `data-token-index` - **Uso**: Índice del token en la secuencia generada. **Riesgo**: Información técnica sobre el proceso de tokenización que puede ser utilizada para análisis forense del contenido.
+
+- `data-model` - **Uso**: Identifica el modelo de LLM utilizado (ej: GPT-4, Claude-3). **Riesgo**: Expone directamente qué herramienta de IA se utilizó, información que puede afectar la percepción de originalidad.
+
+- `data-render-timestamp` - **Uso**: Marca de tiempo de cuándo se renderizó el contenido. **Riesgo**: Puede exponer información sobre cuándo se generó el contenido, potencialmente revelando patrones de uso.
+
+- `data-update-timestamp` - **Uso**: Marca de tiempo de la última actualización. **Riesgo**: Similar a `data-render-timestamp`, puede revelar información temporal sensible sobre el proceso de creación.
+
+- `data-confidence` - **Uso**: Nivel de confianza del LLM en la respuesta generada. **Riesgo**: Expone información sobre la incertidumbre del modelo, lo que puede afectar la credibilidad del contenido.
+
+- `data-temperature` - **Uso**: Parámetro de temperatura usado en la generación (controla la creatividad/aleatoriedad). **Riesgo**: Información técnica sobre los parámetros de generación que no debería ser pública.
+
+- `data-seed` - **Uso**: Semilla utilizada para la generación aleatoria. **Riesgo**: Con la semilla y otros parámetros, teóricamente se podría reproducir la generación, comprometiendo la unicidad del contenido.
+
+- `data-step` - **Uso**: Número de paso en el proceso de generación. **Riesgo**: Expone información sobre el proceso iterativo de generación, revelando detalles técnicos innecesarios.
+
+- `data-lang` - **Uso**: Idioma detectado o especificado para el contenido. **Riesgo**: Aunque menos sensible, puede exponer información sobre el procesamiento del LLM que no es necesaria en el HTML público.
+
+- `data-format` - **Uso**: Formato del contenido (markdown, HTML, texto plano). **Riesgo**: Información técnica sobre el formato que puede ser utilizada para identificar la herramienta de origen.
+
+- `data-annotation` - **Uso**: Anotaciones o comentarios del LLM sobre el contenido. **Riesgo**: Puede contener información adicional o metadatos que el usuario no quiere exponer públicamente.
+
+- `data-reference` - **Uso**: Referencias a fuentes o documentos utilizados. **Riesgo**: Puede exponer fuentes de información o referencias internas que el usuario prefiere mantener privadas.
+
+- `data-version` - **Uso**: Versión del modelo o sistema utilizado. **Riesgo**: Expone información sobre la versión del LLM, útil para análisis forense del contenido.
+
+- `data-error` - **Uso**: Información sobre errores durante la generación. **Riesgo**: Puede exponer información de depuración o errores técnicos que no deberían estar en el HTML público.
+
+- `data-stream-id` - **Uso**: Identificador del stream de generación. **Riesgo**: Permite correlacionar contenido generado en el mismo stream, potencialmente identificando sesiones o conversaciones.
+
+- `data-chunk` - **Uso**: Identifica fragmentos o "chunks" del contenido generado. **Riesgo**: Expone cómo el LLM dividió el contenido en partes, información estructural innecesaria.
+
+- `data-context-id` - **Uso**: Identificador del contexto de la conversación. **Riesgo**: Permite correlacionar contenido con contextos específicos, potencialmente identificando conversaciones o sesiones.
+
+- `data-user-id` - **Uso**: Identificador del usuario que generó el contenido. **Riesgo**: **ALTO RIESGO**: Puede exponer información de identificación del usuario, comprometiendo seriamente la privacidad.
+
+- `data-ui-state` - **Uso**: Estado de la interfaz de usuario cuando se generó el contenido. **Riesgo**: Expone información sobre el estado de la UI del LLM, información técnica que no debería estar en el HTML público.
+
+- Cualquier atributo `id` cuyo valor empiece por `model-response-message-contentr_` - **Uso**: Identificadores automáticos generados por algunos LLMs para elementos de respuesta. **Riesgo**: Permite identificar directamente contenido generado por LLMs específicos, afectando la percepción de originalidad y potencialmente el SEO.
 
 ### Referencias de contenido LLM eliminadas
 
 El plugin también elimina referencias de contenido que algunos LLMs agregan al texto:
 
-- `ContentReference [oaicite:=0](index=0)` y variaciones
-- `[oaicite:0]`, `[oaicite:=1]`, etc.
+- `ContentReference [oaicite:=0](index=0)` y variaciones - **Uso**: Referencias a fuentes o citas utilizadas por el LLM (especialmente en modelos como ChatGPT con búsqueda web). **Riesgo**: Expone que el contenido fue generado por un LLM y puede revelar qué fuentes fueron consultadas, afectando la percepción de originalidad y potencialmente exponiendo información sobre el proceso de investigación del modelo.
+
+- `[oaicite:0]`, `[oaicite:=1]`, etc. - **Uso**: Marcadores de citas abreviados insertados automáticamente por algunos LLMs. **Riesgo**: Similar a las referencias completas, estos marcadores identifican claramente el contenido como generado por IA y pueden afectar negativamente el SEO y la credibilidad del contenido.
 
 ### Parámetros UTM eliminados de enlaces
 
 El plugin elimina parámetros UTM de los enlaces que algunos LLMs agregan automáticamente:
 
-- `?utm_source=chatgpt.com`
-- `?utm_medium=chat`
-- `?utm_campaign=...`
-- Y cualquier otro parámetro `utm_*`
+- `?utm_source=chatgpt.com` - **Uso**: Identifica que el enlace proviene de ChatGPT. **Riesgo**: Expone directamente que el contenido fue copiado desde ChatGPT, afectando la percepción de originalidad y potencialmente el SEO. Los buscadores pueden penalizar contenido que claramente proviene de herramientas de IA.
+
+- `?utm_medium=chat` - **Uso**: Indica que el medio de origen fue una conversación/chat. **Riesgo**: Similar a `utm_source`, identifica el método de obtención del contenido, revelando que fue generado o copiado desde una herramienta de chat.
+
+- `?utm_campaign=...` - **Uso**: Identifica la campaña o contexto específico dentro del LLM. **Riesgo**: Puede exponer información adicional sobre el contexto en el que se generó el contenido, incluyendo posibles identificadores de sesión o campaña.
+
+- Y cualquier otro parámetro `utm_*` - **Uso**: Parámetros de seguimiento estándar de marketing. **Riesgo**: Todos los parámetros UTM pueden ser utilizados para rastrear el origen del tráfico y correlacionar contenido con sesiones específicas del LLM, comprometiendo la privacidad y la originalidad percibida del contenido.
 
 ### Caracteres Unicode invisibles eliminados
 
 El plugin también elimina caracteres invisibles que suelen usarse para marcas, manipulación del renderizado o confusión visual. Algunos ejemplos:
 
-- Zero Width Space (U+200B), ZWNJ (U+200C), ZWJ (U+200D)
-- Zero Width No-Break Space / BOM (U+FEFF)
-- Word Joiner (U+2060), Invisible Separator (U+2063), Invisible Plus (U+2064), Invisible Times (U+2062)
-- Soft Hyphen (U+00AD)
-- Marcas de direccionalidad y control bidi: LRM (U+200E), RLM (U+200F), LRE/RLE/PDF/LRO/RLO (U+202A–U+202E), aislantes (U+2066–U+2069)
-- Mongolian Vowel Separator (U+180E)
-- Tag Characters (U+E0000–U+E007F)
-- Invisible Ideographic Space (U+3000)
-- Object Replacement Character (U+FFFC)
-- Variation Selectors (U+FE00–U+FE0F)
+- **Zero Width Space (U+200B), ZWNJ (U+200C), ZWJ (U+200D)** - **Uso**: Caracteres de ancho cero utilizados para controlar el comportamiento de palabras y espacios en diferentes idiomas. **Riesgo**: Pueden ser utilizados como marcas de agua invisibles para rastrear contenido. Los buscadores y sistemas de detección de plagio pueden identificar estos caracteres como señales de contenido generado o copiado. También pueden causar problemas de indexación y búsqueda.
 
-Estos caracteres se registran en el log con el prefijo “unicode: ...” para que puedas ver exactamente cuál fue eliminado.
+- **Zero Width No-Break Space / BOM (U+FEFF)** - **Uso**: Marca de orden de bytes (BOM) o espacio de no separación invisible. **Riesgo**: Puede ser utilizado como marca de agua para identificar la fuente del contenido. Su presencia puede causar problemas de codificación y renderizado en diferentes navegadores y sistemas.
+
+- **Word Joiner (U+2060), Invisible Separator (U+2063), Invisible Plus (U+2064), Invisible Times (U+2062)** - **Uso**: Caracteres invisibles para controlar el comportamiento de palabras y operadores matemáticos. **Riesgo**: Pueden ser utilizados como marcas de agua o para ocultar información. Su presencia puede afectar la indexación del contenido y ser detectada por sistemas de análisis de texto.
+
+- **Soft Hyphen (U+00AD)** - **Uso**: Guion suave que solo se muestra cuando es necesario para dividir palabras. **Riesgo**: Aunque tiene un uso legítimo, puede ser utilizado para marcar contenido o causar problemas de renderizado. Los buscadores pueden interpretarlo de manera inconsistente.
+
+- **Marcas de direccionalidad y control bidi: LRM (U+200E), RLM (U+200F), LRE/RLE/PDF/LRO/RLO (U+202A–U+202E), aislantes (U+2066–U+2069)** - **Uso**: Controlan la dirección del texto (izquierda a derecha, derecha a izquierda) en idiomas bidireccionales. **Riesgo**: Pueden ser utilizados para ocultar información o manipular el renderizado del texto. Su uso incorrecto puede causar problemas graves de visualización y ser detectado como contenido sospechoso por sistemas de seguridad.
+
+- **Mongolian Vowel Separator (U+180E)** - **Uso**: Separador de vocales en el idioma mongol. **Riesgo**: Raramente necesario fuera de contextos específicos de idioma mongol. Su presencia puede ser una señal de contenido manipulado o marcado.
+
+- **Tag Characters (U+E0000–U+E007F)** - **Uso**: Caracteres de etiquetado privado utilizados para metadatos. **Riesgo**: **ALTO RIESGO**: Estos caracteres están específicamente diseñados para almacenar información oculta y pueden contener marcas de agua, identificadores de fuente, o metadatos sensibles. Su presencia es una señal clara de contenido marcado o rastreado.
+
+- **Invisible Ideographic Space (U+3000)** - **Uso**: Espacio ideográfico invisible usado en idiomas CJK (chino, japonés, coreano). **Riesgo**: Puede ser utilizado como marca de agua o causar problemas de renderizado en contextos no CJK. Su presencia puede afectar la indexación y búsqueda del contenido.
+
+- **Object Replacement Character (U+FFFC)** - **Uso**: Marcador de posición para objetos embebidos. **Riesgo**: Puede causar problemas de renderizado y ser utilizado para ocultar información. Su presencia puede indicar contenido mal formateado o manipulado.
+
+- **Variation Selectors (U+FE00–U+FE0F)** - **Uso**: Controlan variaciones visuales de caracteres Unicode. **Riesgo**: Pueden ser utilizados para crear marcas de agua invisibles o manipular la apariencia del texto. Su uso excesivo puede ser detectado como contenido sospechoso.
+
+**Riesgo general de caracteres Unicode invisibles**: Estos caracteres pueden ser utilizados para crear "marcas de agua" invisibles que permiten a los LLMs rastrear y verificar si el contenido fue generado por ellos. Además, pueden causar problemas de indexación en buscadores, afectar la accesibilidad, y ser detectados por sistemas de detección de plagio o contenido generado por IA.
+
+Estos caracteres se registran en el log con el prefijo "unicode: ..." para que puedas ver exactamente cuál fue eliminado.
 
 ## 📦 Requisitos
 
@@ -201,7 +251,7 @@ Esto asegura que los bots y herramientas LLM siempre vean el contenido más reci
 
 ## 🏗️ Estructura del plugin
 
-```
+```text
 llm-trace-cleaner/
 ├── llm-trace-cleaner.php                        # Archivo principal
 ├── .env                                          # Token de GitHub (NO subir al repo)
@@ -326,177 +376,82 @@ set_time_limit(300);
 ## 📝 Changelog
 
 ### 1.6.3
-- **Reorganización de la interfaz del Sistema de Actualizaciones**:
-  - La información del updater (último error y última verificación) ahora se muestra dentro de la tabla principal
-  - Eliminada la fila "Token de GitHub" de la tabla (no es necesaria para repos públicos)
-  - El bloque completo de "Sistema de Actualizaciones desde GitHub" se ha movido después de "Información del Sistema" para mejor organización
-- **Correcciones de bugs**:
-  - Corregido el botón "Limpiar todos los logs" que se quedaba en "Eliminando..." sin completar la acción
-  - Añadida validación para evitar mostrar fechas/horas duplicadas o en blanco en los logs de errores y depuración
-  - Mejora en la validación de campos antes de mostrar información en las tablas
+- Reorganización de la interfaz del Sistema de Actualizaciones: información del updater integrada en la tabla principal, eliminada fila "Token de GitHub" para repos públicos
+- Correcciones: botón "Limpiar todos los logs" corregido, validación mejorada para evitar fechas/horas duplicadas o en blanco en logs
 
 ### 1.6.2
-- **Análisis previo mejorado**:
-  - El análisis ahora muestra una tabla seleccionable con todos los posts/páginas que tienen datos encontrados
-  - Cada post muestra su título (enlace), ID y los elementos encontrados (atributos, Unicode, content references, UTM parameters)
-  - Botones "Seleccionar todo" / "Deseleccionar todo" para facilitar la selección
-  - La tabla es colapsable para no ocupar mucho espacio
-- **Detección mejorada de contenido modificado**:
-  - El sistema de logging ahora detecta automáticamente content references y UTM parameters eliminados
-  - Mejora en la detección cuando no hay stats pero hay cambios en el contenido
-  - El análisis captura URLs completas con parámetros UTM para mejor identificación
-- **Simplificación de logs del updater**:
-  - Los logs del updater ahora muestran solo el último error y la última verificación
-  - Visualización mejorada como información de estado en lugar de tablas de historial
-  - Los logs se muestran dentro de la sección "Sistema de Actualizaciones desde GitHub"
+- Análisis previo mejorado: tabla seleccionable con posts/páginas y elementos encontrados, botones de selección masiva, tabla colapsable
+- Detección mejorada: logging automático de content references y UTM parameters eliminados, captura de URLs completas con parámetros UTM
+- Simplificación de logs del updater: solo último error y última verificación, visualización como información de estado
 
 ### 1.6.1
-- **Corrección crítica de persistencia de transients**:
-  - Solucionado el problema donde el estado del proceso no se encontraba al iniciar la limpieza manual
-  - Implementada persistencia directa en base de datos para evitar problemas con object cache (Redis, Memcached)
-  - El sistema ahora guarda y lee los transients directamente desde la base de datos, evitando problemas de sincronización
-  - Optimización: Ya no se guardan todos los IDs de posts en el transient (solo metadatos), recalculándolos cuando es necesario
-  - Mejora en la confiabilidad del proceso de limpieza por lotes
+- Corrección crítica de persistencia de transients: persistencia directa en base de datos para evitar problemas con object cache (Redis, Memcached), optimización de almacenamiento de IDs
 
 ### 1.6.0
-- **Telemetría mejorada para estudios e investigación**:
-  - Nuevos datos capturados: Content References y UTM Parameters (totales, tipos únicos y detalle por tipo)
-  - Métricas de rendimiento: tiempo de procesamiento, posts por segundo, ratio de modificación
-  - Métricas agregadas: total de items removidos, promedio de items por post modificado
-  - Opciones de limpieza usadas: registro de qué opciones estaban activas durante la limpieza
-  - Google Sheets mejorado: 35 columnas de datos enriquecidos para análisis estadístico
-  - Todos los datos siguen siendo completamente anónimos (sin IDs de posts, títulos o contenido)
+- Telemetría mejorada: captura de Content References y UTM Parameters, métricas de rendimiento (tiempo, posts/segundo, ratio), Google Sheets con 35 columnas de datos enriquecidos
 
 ### 1.5.0
-- **Mejoras en el sistema de actualizaciones**: 
-  - Corrección del error 401 para repositorios públicos (no se usa token inválido)
-  - Validación mejorada de tokens de GitHub
-  - Mejora en el manejo del directorio `-main` al actualizar desde GitHub
-  - Botones para limpiar errores del updater y historial de verificaciones en la página de depuración
-- **Mejoras en la interfaz de depuración**:
-  - Botón para limpiar errores del updater
-  - Botón para limpiar historial de verificaciones
-  - Mejor organización de los logs del sistema de actualizaciones
+- Sistema de actualizaciones: corrección de error 401 para repos públicos, validación mejorada de tokens, manejo del directorio `-main`
+- Interfaz de depuración: botones para limpiar errores del updater e historial de verificaciones
 
 ### 1.4.0
-- 🔄 **Sistema de Actualizaciones Automáticas desde GitHub**
-  - Verificación automática de nuevas versiones cada hora
-  - Actualización directa desde el panel de administración de WordPress
-  - Soporte para repositorios públicos y privados (con token)
-  - Página de diagnóstico con estado del updater
-  - Logs de verificaciones y errores del updater
-- 🧹 **Limpieza de Referencias de Contenido (ContentReference)**
-  - Detecta y elimina referencias LLM como `ContentReference [oaicite:=0](index=0)`
-  - Soporte para múltiples variaciones del formato
-- 🔗 **Limpieza de Parámetros UTM de Enlaces**
-  - Elimina parámetros UTM de enlaces como `?utm_source=chatgpt.com`
-  - Soporte para todos los parámetros utm_* (utm_source, utm_medium, utm_campaign, etc.)
-  - Procesamiento robusto de URLs usando parse_url() y parse_str()
-- **Análisis previo mejorado**: Ahora procesa TODOS los posts (sin límite de 100)
-- **Interfaz actualizada**: Nuevas opciones de selección de tipos de limpieza
+- Sistema de Actualizaciones Automáticas desde GitHub: verificación automática cada hora, actualización desde panel de WordPress, soporte para repos públicos y privados, página de diagnóstico
+- Limpieza de Referencias de Contenido (ContentReference): detección y eliminación de referencias LLM con múltiples variaciones
+- Limpieza de Parámetros UTM: eliminación de parámetros utm_* de enlaces, procesamiento robusto de URLs
+- Análisis previo mejorado: procesa todos los posts sin límite, interfaz actualizada con opciones de selección
 
 ### 1.3.0
-- **Registro de actividad mejorado**: Ahora se muestra exactamente qué cambios se realizaron y dónde (párrafo, bloque CSS, etc.)
-- **Opciones de configuración de limpieza**: Añadidas opciones para activar/desactivar limpieza de parámetros y Unicode (por defecto desactivadas)
-- **Análisis previo**: Sistema de análisis previo que muestra qué elementos se encontraron antes de limpiar
-- **Selección de tipos de limpieza**: Interfaz para seleccionar qué tipos de limpieza aplicar con botón "Seleccionar todo"
-- **Ubicaciones detalladas en logs**: Los logs ahora incluyen información sobre dónde se realizaron los cambios (Gutenberg Block, Paragraph, Heading, etc.)
-- **Control granular**: Los usuarios pueden elegir exactamente qué limpiar basándose en el análisis previo
+- Registro de actividad mejorado: muestra cambios exactos y ubicaciones (párrafo, bloque CSS, etc.)
+- Opciones de configuración: activar/desactivar limpieza de parámetros y Unicode (por defecto desactivadas)
+- Análisis previo y selección granular: sistema de análisis previo, interfaz para seleccionar tipos de limpieza, control granular basado en análisis
 
 ### 1.2.1
-- **Detección mejorada de bloques de Gutenberg**: Sistema mejorado para detectar bloques de Gutenberg por clases CSS cuando no hay comentarios de Gutenberg disponibles
-- **Preservación de bloques RankMath FAQ**: El sistema ahora detecta y preserva bloques de RankMath FAQ por sus clases CSS específicas (`wp-block-rank-math-faq-block` y `rank-math-block`)
-- **Extracción robusta de bloques div**: Implementado método robusto para extraer bloques div completos contando correctamente las etiquetas de apertura y cierre
-- **Compatibilidad mejorada**: El plugin ahora funciona correctamente con bloques de Gutenberg que no tienen comentarios HTML en el contenido guardado
+- Detección mejorada de bloques de Gutenberg: detección por clases CSS cuando no hay comentarios disponibles
+- Preservación de bloques RankMath FAQ: detección por clases CSS específicas
+- Extracción robusta de bloques div: método mejorado para bloques completos
 
 ### 1.2.0
-- **Preservación mejorada de bloques de Gutenberg**: Sistema mejorado para preservar bloques completos de Gutenberg (comentarios + contenido) sin procesarlos
-- **Placeholders de texto**: Uso de placeholders de texto en lugar de comentarios HTML para evitar que DOMDocument los elimine
-- **Captura de bloques completos**: El sistema ahora captura bloques completos desde el comentario de apertura hasta el de cierre, preservando todo el contenido
-- **Verificación de coincidencia**: Verificación automática de que los comentarios de apertura y cierre correspondan al mismo bloque antes de preservarlo
-- **Restauración mejorada**: Sistema mejorado de restauración que maneja placeholders escapados como entidades HTML
+- Preservación mejorada de bloques de Gutenberg: sistema mejorado con placeholders de texto, captura de bloques completos, verificación de coincidencia, restauración mejorada
 
 ### 1.1.9
-- **Preservación de bloques de Gutenberg**: Solucionado el problema donde los bloques de Gutenberg (especialmente RankMath FAQ) se eliminaban o corrompían durante la limpieza
-- **Extracción de comentarios de bloques**: El sistema ahora extrae y preserva los comentarios HTML de bloques de Gutenberg (`<!-- wp:namespace/block-name -->`) antes de procesar el HTML
-- **Restauración automática**: Los comentarios de bloques se restauran automáticamente después de la limpieza, manteniendo la estructura completa del bloque
-- **Compatibilidad con Gutenberg**: El plugin ahora es completamente compatible con todos los bloques de Gutenberg, incluyendo bloques personalizados de plugins como RankMath
+- Preservación de bloques de Gutenberg: extracción y preservación de comentarios HTML, restauración automática, compatibilidad completa con bloques personalizados
 
 ### 1.1.8
-- **Mejora en decodificación Unicode**: Sistema mejorado para manejar múltiples formatos de secuencias Unicode (`u003c`, `\u003c`, `&#x003c;`, etc.)
-- **Verificación de caracteres invisibles**: El sistema ahora verifica que los caracteres Unicode decodificados no sean caracteres invisibles que estamos eliminando
-- **Eliminación inteligente**: Los caracteres invisibles se eliminan automáticamente durante la decodificación, evitando problemas de formateo
-- **Soporte para múltiples formatos**: Ahora se manejan correctamente formatos como `u003c`, `\u003c`, y entidades HTML hexadecimales
+- Mejora en decodificación Unicode: soporte para múltiples formatos (u003c, \u003c, &#x003c;), verificación y eliminación inteligente de caracteres invisibles durante decodificación
 
 ### 1.1.7
-- **Corrección de formato HTML**: Solucionado el problema donde el texto aparecía con secuencias Unicode mal formateadas (ej: `u003c` en lugar de `<`) después de eliminar caracteres Unicode invisibles
-- **Decodificación de secuencias Unicode**: Implementada decodificación automática de secuencias Unicode como `u003c`, `u003e`, etc. a sus caracteres HTML correspondientes
-- **Mejora en el formateo**: El HTML ahora se mantiene correctamente formateado después de la limpieza, asegurando que las etiquetas HTML se muestren correctamente
+- Corrección de formato HTML: decodificación automática de secuencias Unicode mal formateadas, mejora en formateo del HTML
 
 ### 1.1.6
-- **Corrección crítica de procesamiento por lotes**: Solucionado el problema donde el proceso se quedaba atascado en un offset específico (ej: offset 64) y no continuaba procesando posts
-- **Mejora en la consulta de posts**: Ahora se obtienen todos los IDs al inicio del proceso y se procesan usando `post__in` en lugar de `offset`, evitando problemas con filtros de plugins
-- **Mayor confiabilidad**: El sistema ahora procesa exactamente los posts identificados al inicio, sin depender de consultas con offset que pueden fallar
-- **Actualización directa sin hooks**: Implementada actualización directa a la base de datos para evitar ejecutar los hooks de `save_post` (WPML, WooCommerce, RankMath, Divi Builder, etc.) que causaban bloqueos
-- **Rendimiento mejorado**: El proceso de limpieza es ahora mucho más rápido al evitar la ejecución de todos los callbacks de plugins durante la actualización de posts
+- Corrección crítica de procesamiento por lotes: solución de bloqueos en offsets específicos, consulta mejorada usando `post__in`, actualización directa sin hooks para evitar bloqueos de plugins
 
 ### 1.1.5
-- **Detección de conflictos de plugins**: Sistema mejorado para identificar qué plugins pueden estar causando que el proceso de limpieza se detenga o sea lento
-- **Medición de tiempos de procesamiento**: Registro detallado del tiempo que tarda cada post en procesarse y actualizarse
-- **Información de plugins activos**: Nueva sección en la pestaña de Depuración que muestra todos los plugins activos y sus versiones
-- **Análisis de hooks de WordPress**: Visualización de todos los hooks relacionados con `save_post` que podrían interferir con el proceso
-- **Alertas de posts lentos**: El sistema detecta y registra posts que tardan más de 2 segundos en actualizarse o más de 5 segundos en procesarse completamente
-- **Logging mejorado**: Información del sistema (plugins y hooks) se registra al inicio de cada proceso de limpieza para facilitar el diagnóstico
+- Detección de conflictos: identificación de plugins que causan problemas, medición de tiempos, información de plugins activos y hooks de WordPress, alertas de posts lentos
 
 ### 1.1.4
-- **Información del sistema mejorada**: Valores recomendados mostrados junto a los valores actuales con indicadores de color (verde para valores correctos, rojo para valores inferiores)
-- **Descarga de log de depuración**: Nuevo botón para descargar todos los logs de depuración y errores en un archivo
-- **Comparación automática de valores**: El sistema compara automáticamente los valores del servidor con los recomendados y los marca visualmente
-- **Sistema de actualización automática**: Verificación y actualización automática de opciones cuando se actualiza el plugin
-- **Corrección de problemas de actualización**: Solucionado el problema de pantalla en blanco durante las actualizaciones del plugin
+- Información del sistema mejorada: valores recomendados con indicadores de color, comparación automática, descarga de log de depuración
+- Sistema de actualización automática: verificación y actualización de opciones, corrección de pantalla en blanco
 
 ### 1.1.3
-- **Sistema de logging mejorado**: Logging detallado de memoria, tiempo de ejecución y progreso en cada lote
-- **Diagnóstico de errores mejorado**: Captura y registro de errores AJAX desde el cliente con información detallada
-- **Información de depuración**: Cada lote registra uso de memoria, tiempo restante y progreso porcentual
-- **Mejor manejo de timeouts**: Detección y reintento automático con información detallada del error
-- **Logging de estado del proceso**: Registro del estado completo antes y después de cada lote
+- Sistema de logging mejorado: logging detallado de memoria y tiempo, diagnóstico de errores AJAX, mejor manejo de timeouts, registro de estado del proceso
 
 ### 1.1.2
-- **Menú principal en la barra de administración**: El plugin ahora aparece como un menú principal en lugar de estar en "Herramientas"
-- **Configuración de posts por lote**: Nueva opción para ajustar el número de posts procesados por lote (recomendado entre 10 y 30 según el servidor)
-- **Pestaña de Depuración**: Nueva sección para diagnosticar errores y problemas durante el proceso de limpieza
-- **Sistema de logging de errores**: Captura automática de errores durante el procesamiento para facilitar el diagnóstico
-- **Información del sistema**: Muestra detalles del entorno (PHP, WordPress, memoria, etc.) en la pestaña de depuración
-- **Telemetría anónima (opt-in, activada por defecto)**: Sistema opcional para compartir estadísticas anónimas con propósitos de investigación y estudios sobre LLMs y buscadores
-- Limpieza de caracteres Unicode invisibles (Zero Width, control bidi, BOM, Soft Hyphen, Variation Selectors, Tag Characters, etc.)
-- Estadísticas por tipo de Unicode en el log (prefijo "unicode: ...") incluso cuando no hay atributos HTML
-- API de filtro `llm_trace_cleaner_unicode_map` para personalizar qué caracteres eliminar
+- Menú principal en barra de administración, configuración de posts por lote, pestaña de Depuración
+- Telemetría anónima (opt-in): sistema para compartir estadísticas anónimas
+- Limpieza de caracteres Unicode invisibles: soporte completo con estadísticas por tipo, API de filtro `llm_trace_cleaner_unicode_map`
 
 ### 1.1.1
-- Ampliación de la lista de atributos eliminados (soporte para `data-offset-key`, `data-message-id`, `data-sender`/`data-role`, `data-token-index`, `data-model`, `data-render-timestamp`, `data-update-timestamp`, `data-confidence`, `data-temperature`, `data-seed`, `data-step`, `data-lang`, `data-format`, `data-annotation`, `data-reference`, `data-version`, `data-error`, `data-stream-id`, `data-chunk`, `data-context-id`, `data-user-id`, `data-ui-state`)
-- Nueva API de filtro `llm_trace_cleaner_attributes` para extender atributos sin tocar el core
-- El logger usa la misma lista del limpiador para detectar y reportar atributos eliminados con precisión
-- Botones “Seleccionar todos / Deseleccionar” en la lista de Bots/LLMs a detectar
-- Recarga automática de la página al finalizar el procesamiento para mostrar los nuevos logs
+- Ampliación de atributos eliminados: soporte para 23 nuevos atributos de rastreo
+- API de filtro `llm_trace_cleaner_attributes` para extender atributos
+- Mejoras de interfaz: botones de selección masiva, recarga automática al finalizar
 
 ### 1.1.0
-- Sistema de gestión de caché inteligente
-- Desactivación automática de caché durante la limpieza
-- Limpieza de caché después de modificar posts
-- Detección de bots/LLMs para desactivar caché
-- Detección inteligente de atributos eliminados en el log
-- Paginación en el registro de actividad
-- Archivo de log descargable
+- Sistema de gestión de caché inteligente: desactivación automática durante limpieza, limpieza después de modificar posts, detección de bots/LLMs
+- Mejoras de logging: detección inteligente de atributos, paginación, archivo descargable
 - Compatibilidad mejorada con plugins de caché (LiteSpeed, WP Rocket, W3 Total Cache, etc.)
 
 ### 1.0.0
-- Versión inicial
-- Limpieza automática al guardar
-- Limpieza manual con procesamiento por lotes
-- Sistema de logging completo
-- Interfaz de administración
-- Barra de progreso en tiempo real
+- Versión inicial: limpieza automática al guardar, limpieza manual con procesamiento por lotes, sistema de logging completo, interfaz de administración, barra de progreso
 
 ## 🤝 Contribuciones
 
@@ -512,7 +467,7 @@ Las contribuciones son bienvenidas. Por favor:
 
 Este plugin está licenciado bajo GPL v2 o posterior.
 
-```
+```text
 Copyright (C) 2024
 
 This program is free software; you can redistribute it and/or modify
@@ -530,8 +485,8 @@ GNU General Public License for more details.
 
 **Yago Vázquez Gómez (Yaggoseo)**
 
-- Website: (https://yaggoseo.com)
-- GitHub: (https://github.com/yaggoSEO)
+- Website: <https://yaggoseo.com>
+- GitHub: <https://github.com/yaggoSEO>
 
 ## 🙏 Agradecimientos
 
@@ -597,10 +552,10 @@ Para repositorios públicos (como este), no se necesita configuración adicional
 
 Si usas un fork privado:
 
-1. Ve a https://github.com/settings/tokens
+1. Ve a <https://github.com/settings/tokens>
 2. Genera un nuevo token con permiso `repo`
 3. Crea un archivo `.env` en la raíz del plugin:
-   ```
+   ```env
    LLM_TRACE_CLEANER_GITHUB_TOKEN=ghp_tu_token_aqui
    ```
 
@@ -631,5 +586,3 @@ Si encuentras algún problema o tienes sugerencias:
 - El sistema de logging ayuda a rastrear todos los cambios realizados
 - La limpieza automática solo se ejecuta en posts y páginas publicados
 - El plugin es compatible con la mayoría de temas y plugins de WordPress
-
-
