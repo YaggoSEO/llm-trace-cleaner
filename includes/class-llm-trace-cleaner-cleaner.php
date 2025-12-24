@@ -121,20 +121,41 @@ class LLM_Trace_Cleaner_Cleaner {
             $cleaned_html = $html;
         }
         
+        // #region agent log - Verificar opciones antes de limpiar Unicode
+        $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
+        if (!is_dir($log_dir)) {
+            @mkdir($log_dir, 0755, true);
+        }
+        $log_file = $log_dir . '/debug.log';
+        $unicode_before_check = preg_match_all('/\x{200B}/u', $cleaned_html);
+        $log_data = json_encode(array(
+            'sessionId' => 'debug-session',
+            'runId' => 'run2',
+            'hypothesisId' => 'D',
+            'location' => 'class-llm-trace-cleaner-cleaner.php:124',
+            'message' => 'Verificando opciones antes de limpiar Unicode',
+            'data' => array(
+                'clean_unicode_option' => isset($options['clean_unicode']) ? $options['clean_unicode'] : 'NOT_SET',
+                'clean_unicode_type' => gettype($options['clean_unicode'] ?? null),
+                'clean_unicode_bool' => (bool)($options['clean_unicode'] ?? false),
+                'unicode_200B_count' => $unicode_before_check,
+                'html_length' => strlen($cleaned_html),
+                'all_options' => $options
+            ),
+            'timestamp' => round(microtime(true) * 1000)
+        )) . "\n";
+        @file_put_contents($log_file, $log_data, FILE_APPEND);
+        // #endregion
+        
         // Limpiar Unicode si está activado
-        if ($options['clean_unicode']) {
+        if (!empty($options['clean_unicode'])) {
             // #region agent log
-            $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
-            if (!is_dir($log_dir)) {
-                @mkdir($log_dir, 0755, true);
-            }
-            $log_file = $log_dir . '/debug.log';
             $unicode_before_clean = preg_match_all('/\x{200B}/u', $cleaned_html);
             $log_data = json_encode(array(
                 'sessionId' => 'debug-session',
-                'runId' => 'run1',
+                'runId' => 'run2',
                 'hypothesisId' => 'B',
-                'location' => 'class-llm-trace-cleaner-cleaner.php:125',
+                'location' => 'class-llm-trace-cleaner-cleaner.php:149',
                 'message' => 'Antes de remove_invisible_unicode',
                 'data' => array(
                     'clean_unicode_enabled' => $options['clean_unicode'],
@@ -152,15 +173,32 @@ class LLM_Trace_Cleaner_Cleaner {
             $unicode_after_clean = preg_match_all('/\x{200B}/u', $cleaned_html);
             $log_data = json_encode(array(
                 'sessionId' => 'debug-session',
-                'runId' => 'run1',
+                'runId' => 'run2',
                 'hypothesisId' => 'B',
-                'location' => 'class-llm-trace-cleaner-cleaner.php:127',
+                'location' => 'class-llm-trace-cleaner-cleaner.php:165',
                 'message' => 'Después de remove_invisible_unicode',
                 'data' => array(
                     'unicode_200B_before' => $unicode_before_clean,
                     'unicode_200B_after' => $unicode_after_clean,
                     'unicode_removed' => ($unicode_before_clean > $unicode_after_clean),
                     'html_length' => strlen($cleaned_html)
+                ),
+                'timestamp' => round(microtime(true) * 1000)
+            )) . "\n";
+            @file_put_contents($log_file, $log_data, FILE_APPEND);
+            // #endregion
+        } else {
+            // #region agent log - Unicode NO está activado
+            $log_data = json_encode(array(
+                'sessionId' => 'debug-session',
+                'runId' => 'run2',
+                'hypothesisId' => 'A',
+                'location' => 'class-llm-trace-cleaner-cleaner.php:180',
+                'message' => 'Unicode NO está activado - saltando limpieza',
+                'data' => array(
+                    'clean_unicode_value' => $options['clean_unicode'] ?? 'NOT_SET',
+                    'clean_unicode_type' => gettype($options['clean_unicode'] ?? null),
+                    'unicode_200B_count' => preg_match_all('/\x{200B}/u', $cleaned_html)
                 ),
                 'timestamp' => round(microtime(true) * 1000)
             )) . "\n";

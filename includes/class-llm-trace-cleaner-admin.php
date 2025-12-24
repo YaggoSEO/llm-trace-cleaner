@@ -499,11 +499,44 @@ class LLM_Trace_Cleaner_Admin {
                     
                     // Si viene desde análisis previo, usar selección del usuario
                     if (isset($_POST['selected_clean_types'])) {
-                        $selected = json_decode(stripslashes($_POST['selected_clean_types']), true);
-                        $clean_options['clean_attributes'] = isset($selected['attributes']) && $selected['attributes'];
-                        $clean_options['clean_unicode'] = isset($selected['unicode']) && $selected['unicode'];
-                        $clean_options['clean_content_references'] = isset($selected['content_references']) && $selected['content_references'];
-                        $clean_options['clean_utm_parameters'] = isset($selected['utm_parameters']) && $selected['utm_parameters'];
+                        $selected_raw = stripslashes($_POST['selected_clean_types']);
+                        $selected = json_decode($selected_raw, true);
+                        $json_error = json_last_error();
+                        
+                        // #region agent log - Debug del JSON
+                        $log_dir = dirname(dirname(__DIR__)) . '/.cursor';
+                        if (!is_dir($log_dir)) {
+                            @mkdir($log_dir, 0755, true);
+                        }
+                        $log_file = $log_dir . '/debug.log';
+                        $log_data = json_encode(array(
+                            'sessionId' => 'debug-session',
+                            'runId' => 'run2',
+                            'hypothesisId' => 'A',
+                            'location' => 'class-llm-trace-cleaner-admin.php:501',
+                            'message' => 'Parseando selected_clean_types del POST',
+                            'data' => array(
+                                'post_id' => $post_id,
+                                'selected_raw' => $selected_raw,
+                                'selected_decoded' => $selected,
+                                'json_error' => $json_error,
+                                'json_error_msg' => json_last_error_msg(),
+                                'has_unicode_key' => isset($selected['unicode']),
+                                'unicode_value' => isset($selected['unicode']) ? $selected['unicode'] : 'NOT_SET',
+                                'unicode_type' => isset($selected['unicode']) ? gettype($selected['unicode']) : 'NOT_SET',
+                                'unicode_bool' => isset($selected['unicode']) ? (bool)$selected['unicode'] : false
+                            ),
+                            'timestamp' => round(microtime(true) * 1000)
+                        )) . "\n";
+                        @file_put_contents($log_file, $log_data, FILE_APPEND);
+                        // #endregion
+                        
+                        if ($selected !== null && is_array($selected)) {
+                            $clean_options['clean_attributes'] = !empty($selected['attributes']);
+                            $clean_options['clean_unicode'] = !empty($selected['unicode']);
+                            $clean_options['clean_content_references'] = !empty($selected['content_references']);
+                            $clean_options['clean_utm_parameters'] = !empty($selected['utm_parameters']);
+                        }
                     }
                     
                     // #region agent log
@@ -514,13 +547,16 @@ class LLM_Trace_Cleaner_Admin {
                     $log_file = $log_dir . '/debug.log';
                     $log_data = json_encode(array(
                         'sessionId' => 'debug-session',
-                        'runId' => 'run1',
+                        'runId' => 'run2',
                         'hypothesisId' => 'A',
-                        'location' => 'class-llm-trace-cleaner-admin.php:509',
+                        'location' => 'class-llm-trace-cleaner-admin.php:532',
                         'message' => 'Opciones de limpieza antes de clean_html',
                         'data' => array(
                             'post_id' => $post_id,
                             'clean_options' => $clean_options,
+                            'clean_unicode_value' => $clean_options['clean_unicode'],
+                            'clean_unicode_type' => gettype($clean_options['clean_unicode']),
+                            'clean_unicode_bool' => (bool)$clean_options['clean_unicode'],
                             'has_selected_clean_types' => isset($_POST['selected_clean_types']),
                             'selected_raw' => isset($_POST['selected_clean_types']) ? $_POST['selected_clean_types'] : null
                         ),
