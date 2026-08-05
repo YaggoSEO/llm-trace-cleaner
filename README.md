@@ -19,17 +19,26 @@ Qué hace:
 - Procesamiento manual, por lotes y (opcional) en nuevas subidas.
 - Distinguir **ubicación creada** vs **ubicación mostrada** / ámbito geográfico.
 - Detección heurística de C2PA: por defecto **no modifica** si hay indicios.
-- **ExifTool opcional** (v1.8+): escritura completa EXIF/IPTC/XMP; desactivado por defecto.
+- **ExifTool opcional** (v1.8+): escritura completa EXIF/IPTC/XMP; **solo VPS/dedicado**. En hosting compartido pide **Imagick**.
 - Reglas condicionales por MIME/carpeta/autor; AVIF opcional; export CSV/JSON de informes.
 
-#### ExifTool (opcional)
+#### Hosting compartido vs VPS
 
-1. Instala ExifTool en el servidor (p. ej. `apt install libimage-exiftool-perl` o binario desde exiftool.org).
-2. En **Imágenes → Ajustes**, activa ExifTool. La ruta por defecto es `/usr/bin/exiftool` (también se prueban `/usr/local/bin/exiftool` y otras rutas estándar).
+| Entorno | Qué pedir / usar |
+|---------|------------------|
+| **Compartido (cPanel, etc.)** | Extensión PHP **Imagick**. Deja ExifTool desactivado. |
+| **VPS / dedicado** | Imagick + (opcional) binario ExifTool vía `apt install libimage-exiftool-perl`. |
+
+GD suele venir de serie: limpia, pero no escribe autoría estructurada.
+
+#### ExifTool (opcional, solo VPS)
+
+1. Instala ExifTool en el servidor (`apt install libimage-exiftool-perl` o binario desde exiftool.org). Requiere poder ejecutar binarios (`proc_open`).
+2. En **Imágenes → Ajustes**, activa ExifTool. Ruta típica: `/usr/bin/exiftool`.
 3. Pulsa **Probar ExifTool**.
-4. Guarda ajustes y aplica un perfil (p. ej. SEO local con ciudad rellenada).
+4. Guarda ajustes y aplica un perfil.
 
-Sin ExifTool el plugin no falla: limpia con GD/Imagick y avisa si no puede escribir campos ricos.
+**No es una extensión PHP.** En compartido no detectarlo es lo esperado. Sin ExifTool el plugin no falla: limpia con GD/Imagick.
 
 Qué **no** hace:
 - No elimina marcas de agua incrustadas en píxeles.

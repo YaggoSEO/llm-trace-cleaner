@@ -134,11 +134,11 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 				</td>
 			</tr>
 			<tr>
-				<th><?php esc_html_e( 'ExifTool', 'llm-trace-cleaner' ); ?></th>
+				<th><?php esc_html_e( 'ExifTool (solo VPS)', 'llm-trace-cleaner' ); ?></th>
 				<td>
 					<label>
 						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_enabled]" value="1" <?php checked( ! empty( $settings['exiftool_enabled'] ) ); ?>>
-						<?php esc_html_e( 'Activar motor ExifTool (escritura EXIF/IPTC/XMP)', 'llm-trace-cleaner' ); ?>
+						<?php esc_html_e( 'Activar motor ExifTool (escritura EXIF/IPTC/XMP completa)', 'llm-trace-cleaner' ); ?>
 					</label>
 					<p>
 						<input type="text" class="large-text code" id="llmtc-exiftool-path" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_path]" value="<?php echo esc_attr( $settings['exiftool_path'] ? $settings['exiftool_path'] : '/usr/bin/exiftool' ); ?>" placeholder="/usr/bin/exiftool">
@@ -151,7 +151,7 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 						<span id="llmtc-exiftool-msg"></span>
 					</p>
 					<p class="description">
-						<?php esc_html_e( 'Ruta por defecto en WordPress/Linux: /usr/bin/exiftool. Alternativas habituales: /usr/local/bin/exiftool. En cPanel suele instalarse con el gestor de paquetes del VPS o como binario en /usr/local/bin. Si la ruta falla, el botón Probar también busca en esas ubicaciones estándar. Desactivado por defecto.', 'llm-trace-cleaner' ); ?>
+						<?php esc_html_e( 'No es una extensión PHP: es un binario del sistema (Perl). En hosting compartido (cPanel/Plesk) casi nunca está disponible y no podrás instalarlo. Déjalo desactivado y pide Imagick al hosting. Solo útil en VPS/dedicado tras instalar p. ej. libimage-exiftool-perl; ruta típica /usr/bin/exiftool.', 'llm-trace-cleaner' ); ?>
 					</p>
 				</td>
 			</tr>

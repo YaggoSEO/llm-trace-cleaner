@@ -209,7 +209,7 @@ class LLM_Trace_Cleaner_Image_Admin {
 		echo '<li>' . esc_html__( 'Procesar adjuntos individuales o por lotes desde la biblioteca multimedia', 'llm-trace-cleaner' ) . '</li>';
 		echo '</ul>';
 		echo '<p style="margin-bottom: 10px;"><strong>' . esc_html__( 'Motores:', 'llm-trace-cleaner' ) . '</strong> ';
-		echo esc_html__( 'Imagick es preferente (auditoría y escritura parcial). GD solo limpia por re-encode y no escribe autoría/ubicación estructurada.', 'llm-trace-cleaner' );
+		echo esc_html__( 'En hosting compartido pide Imagick (recomendado). GD solo limpia por re-encode. ExifTool es opcional y casi solo viable en VPS/dedicado (no es extensión PHP).', 'llm-trace-cleaner' );
 		echo '</p>';
 		echo '<p style="margin-bottom: 0; padding-top: 10px; border-top: 1px solid #c3c4c7;"><strong>' . esc_html__( 'Importante:', 'llm-trace-cleaner' ) . '</strong> ';
 		echo esc_html__( 'No elimina marcas de agua en píxeles ni garantiza indetectabilidad. Distingue ubicación creada de ubicación mostrada; no inventa cámara ni GPS. Si detecta posible C2PA, detiene el procesamiento por defecto.', 'llm-trace-cleaner' );
@@ -481,7 +481,7 @@ class LLM_Trace_Cleaner_Image_Admin {
 		if ( ! $probe ) {
 			wp_send_json_error(
 				array(
-					'message' => 'ExifTool no encontrado. Prueba /usr/bin/exiftool o /usr/local/bin/exiftool tras instalarlo en el servidor.',
+					'message' => 'ExifTool no encontrado. En hosting compartido suele no estar instalado (no es extensión PHP). Usa Imagick; ExifTool solo en VPS tras apt/yum install.',
 				)
 			);
 		}

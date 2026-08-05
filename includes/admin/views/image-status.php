@@ -17,7 +17,18 @@ $storage  = LLM_Trace_Cleaner_Image_Backup::storage_mb();
 		<tbody>
 			<tr><th><?php esc_html_e( 'Módulo activo', 'llm-trace-cleaner' ); ?></th><td><?php echo ! empty( $settings['enabled'] ) ? 'Sí' : 'No'; ?></td></tr>
 			<tr><th><?php esc_html_e( 'Motor preferente (strip)', 'llm-trace-cleaner' ); ?></th><td><?php echo esc_html( $caps['preferred_engine'] ); ?></td></tr>
-			<tr><th>Imagick</th><td><?php echo $caps['imagick'] ? 'Sí' : 'No'; ?></td></tr>
+			<tr>
+				<th>Imagick</th>
+				<td>
+					<?php
+					if ( ! empty( $caps['imagick'] ) ) {
+						echo esc_html__( 'Sí (recomendado en hosting compartido)', 'llm-trace-cleaner' );
+					} else {
+						echo esc_html__( 'No — pide al hosting la extensión PHP imagick', 'llm-trace-cleaner' );
+					}
+					?>
+				</td>
+			</tr>
 			<tr><th>GD</th><td><?php echo $caps['gd'] ? 'Sí' : 'No'; ?><?php echo ! empty( $caps['cleanup_only'] ) ? ' (solo limpieza básica)' : ''; ?></td></tr>
 			<tr>
 				<th>ExifTool</th>
@@ -26,9 +37,9 @@ $storage  = LLM_Trace_Cleaner_Image_Backup::storage_mb();
 					if ( ! empty( $caps['exiftool'] ) ) {
 						echo 'Sí — v' . esc_html( $caps['exiftool_version'] );
 					} elseif ( ! empty( $settings['exiftool_enabled'] ) ) {
-						echo esc_html__( 'Activado pero no detectado (revisa la ruta)', 'llm-trace-cleaner' );
+						echo esc_html__( 'Activado pero no detectado (normal en compartido; usa Imagick)', 'llm-trace-cleaner' );
 					} else {
-						echo esc_html__( 'Desactivado', 'llm-trace-cleaner' );
+						echo esc_html__( 'Desactivado (opcional, solo VPS)', 'llm-trace-cleaner' );
 					}
 					?>
 				</td>
@@ -56,13 +67,13 @@ $storage  = LLM_Trace_Cleaner_Image_Backup::storage_mb();
 		</tbody>
 	</table>
 
-	<?php if ( empty( $caps['exiftool'] ) && empty( $caps['imagick'] ) ) : ?>
+	<?php if ( empty( $caps['imagick'] ) ) : ?>
 		<div class="notice notice-warning inline"><p>
-			<?php esc_html_e( 'Sin Imagick ni ExifTool: puedes limpiar por re-encode (GD), pero no escribir autoría, copyright ni ubicación mostrada. Configura ExifTool en Ajustes o instala Imagick.', 'llm-trace-cleaner' ); ?>
+			<?php esc_html_e( 'Sin Imagick: en hosting compartido es lo que debes pedir al proveedor (extensión PHP imagick). Con solo GD puedes limpiar por re-encode, pero no escribir bien autoría/copyright/ubicación. ExifTool no suele estar disponible en compartido (no es extensión PHP).', 'llm-trace-cleaner' ); ?>
 		</p></div>
 	<?php elseif ( empty( $caps['exiftool'] ) ) : ?>
 		<div class="notice notice-info inline"><p>
-			<?php esc_html_e( 'ExifTool desactivado: Imagick puede escribir algunos campos (artist/copyright/description). Para IPTC/XMP y ubicación mostrada estructurada, activa ExifTool.', 'llm-trace-cleaner' ); ?>
+			<?php esc_html_e( 'Imagick activo: suficiente para la mayoría de sitios en compartido (limpieza + artist/copyright/description). ExifTool solo aporta IPTC/XMP completo en VPS donde puedas instalar el binario.', 'llm-trace-cleaner' ); ?>
 		</p></div>
 	<?php endif; ?>
 </div>
