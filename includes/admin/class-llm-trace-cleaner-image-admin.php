@@ -143,6 +143,9 @@ class LLM_Trace_Cleaner_Image_Admin {
 		$out['wp_field_sync']        = sanitize_key( $input['wp_field_sync'] ?? 'set_if_empty' );
 		$out['exiftool_enabled']     = ! empty( $input['exiftool_enabled'] );
 		$out['exiftool_path']        = isset( $input['exiftool_path'] ) ? sanitize_text_field( $input['exiftool_path'] ) : '';
+		if ( '' === $out['exiftool_path'] ) {
+			$out['exiftool_path'] = LLM_Trace_Cleaner_Image_Engine_Exiftool::default_binary_path();
+		}
 		$out['exiftool_timeout']     = max( 5, min( 120, absint( $input['exiftool_timeout'] ?? 30 ) ) );
 		$out['allow_avif']           = ! empty( $input['allow_avif'] );
 		$out['allowed_mimes']        = array( 'image/jpeg', 'image/png', 'image/webp' );
@@ -471,9 +474,16 @@ class LLM_Trace_Cleaner_Image_Admin {
 			wp_send_json_error( array( 'message' => 'Permiso denegado.' ), 403 );
 		}
 		$path = isset( $_POST['path'] ) ? sanitize_text_field( wp_unslash( $_POST['path'] ) ) : '';
+		if ( '' === $path ) {
+			$path = LLM_Trace_Cleaner_Image_Engine_Exiftool::default_binary_path();
+		}
 		$probe = LLM_Trace_Cleaner_Image_Engine_Exiftool::probe( $path );
 		if ( ! $probe ) {
-			wp_send_json_error( array( 'message' => 'ExifTool no disponible en esa ruta (debe ser absoluta y ejecutable).' ) );
+			wp_send_json_error(
+				array(
+					'message' => 'ExifTool no encontrado. Prueba /usr/bin/exiftool o /usr/local/bin/exiftool tras instalarlo en el servidor.',
+				)
+			);
 		}
 		wp_send_json_success( $probe );
 	}

@@ -96,6 +96,7 @@ $defaults = LLM_Trace_Cleaner_Image_Capabilities::default_settings();
 assert_true( false === $defaults['enabled'], 'default disabled' );
 assert_true( true === $defaults['dry_run'], 'default dry_run' );
 assert_true( true === $defaults['stop_on_c2pa'], 'default stop_on_c2pa' );
+assert_true( '/usr/bin/exiftool' === $defaults['exiftool_path'], 'default exiftool path' );
 
 $builtins = LLM_Trace_Cleaner_Image_Profile::builtins();
 assert_true( isset( $builtins['privacy'], $builtins['corporate'], $builtins['seo_local'], $builtins['photography'], $builtins['ai_generated'] ), '5 perfiles built-in' );

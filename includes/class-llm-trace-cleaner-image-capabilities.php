@@ -184,7 +184,7 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 			'preserve_c2pa'               => true,
 			'stop_on_c2pa'                => true,
 			'exiftool_enabled'            => false,
-			'exiftool_path'               => '',
+			'exiftool_path'               => '/usr/bin/exiftool',
 			'exiftool_timeout'            => 30,
 			'delete_backups_on_uninstall' => false,
 			'wp_field_sync'               => 'set_if_empty',

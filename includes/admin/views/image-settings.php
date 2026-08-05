@@ -141,7 +141,7 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 						<?php esc_html_e( 'Activar motor ExifTool (escritura EXIF/IPTC/XMP)', 'llm-trace-cleaner' ); ?>
 					</label>
 					<p>
-						<input type="text" class="large-text code" id="llmtc-exiftool-path" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_path]" value="<?php echo esc_attr( $settings['exiftool_path'] ); ?>" placeholder="/usr/bin/exiftool">
+						<input type="text" class="large-text code" id="llmtc-exiftool-path" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_path]" value="<?php echo esc_attr( $settings['exiftool_path'] ? $settings['exiftool_path'] : '/usr/bin/exiftool' ); ?>" placeholder="/usr/bin/exiftool">
 					</p>
 					<p>
 						<label><?php esc_html_e( 'Timeout (s)', 'llm-trace-cleaner' ); ?>
@@ -150,7 +150,9 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 						<button type="button" class="button" id="llmtc-test-exiftool"><?php esc_html_e( 'Probar ExifTool', 'llm-trace-cleaner' ); ?></button>
 						<span id="llmtc-exiftool-msg"></span>
 					</p>
-					<p class="description"><?php esc_html_e( 'Ruta absoluta al binario. Desactivado por defecto. Sin ExifTool el plugin sigue funcionando.', 'llm-trace-cleaner' ); ?></p>
+					<p class="description">
+						<?php esc_html_e( 'Ruta por defecto en WordPress/Linux: /usr/bin/exiftool. Alternativas habituales: /usr/local/bin/exiftool. En cPanel suele instalarse con el gestor de paquetes del VPS o como binario en /usr/local/bin. Si la ruta falla, el botón Probar también busca en esas ubicaciones estándar. Desactivado por defecto.', 'llm-trace-cleaner' ); ?>
+					</p>
 				</td>
 			</tr>
 			<tr>

@@ -30,7 +30,11 @@ class LLM_Trace_Cleaner_Image_Engine_Exiftool implements LLM_Trace_Cleaner_Image
 	 */
 	public function __construct( $binary = '', $timeout = 30 ) {
 		$settings = LLM_Trace_Cleaner_Image_Manager::settings();
-		$this->binary  = $binary ? $binary : ( isset( $settings['exiftool_path'] ) ? $settings['exiftool_path'] : '' );
+		$path     = $binary ? $binary : ( isset( $settings['exiftool_path'] ) ? $settings['exiftool_path'] : '' );
+		if ( '' === trim( (string) $path ) ) {
+			$path = self::default_binary_path();
+		}
+		$this->binary  = $path;
 		$this->timeout = $timeout > 0 ? (int) $timeout : ( isset( $settings['exiftool_timeout'] ) ? (int) $settings['exiftool_timeout'] : 30 );
 	}
 
@@ -53,12 +57,64 @@ class LLM_Trace_Cleaner_Image_Engine_Exiftool implements LLM_Trace_Cleaner_Image
 	}
 
 	/**
-	 * Probar binario.
+	 * Ruta estándar en hosting Linux / WordPress.
+	 *
+	 * @return string
+	 */
+	public static function default_binary_path() {
+		return '/usr/bin/exiftool';
+	}
+
+	/**
+	 * Candidatos habituales (cPanel, VPS, local).
+	 *
+	 * @return string[]
+	 */
+	public static function candidate_paths() {
+		return array(
+			'/usr/bin/exiftool',
+			'/usr/local/bin/exiftool',
+			'/bin/exiftool',
+			'/opt/local/bin/exiftool',
+			'/opt/homebrew/bin/exiftool',
+		);
+	}
+
+	/**
+	 * Probar binario. Si $path está vacío o falla, prueba rutas estándar.
 	 *
 	 * @param string $path Path.
 	 * @return array|false {version, path} o false.
 	 */
 	public static function probe( $path ) {
+		$path = trim( (string) $path );
+		$tried = array();
+		if ( '' !== $path ) {
+			$tried[] = $path;
+			$result  = self::probe_one( $path );
+			if ( $result ) {
+				return $result;
+			}
+		}
+		foreach ( self::candidate_paths() as $candidate ) {
+			if ( in_array( $candidate, $tried, true ) ) {
+				continue;
+			}
+			$result = self::probe_one( $candidate );
+			if ( $result ) {
+				return $result;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Probar una sola ruta.
+	 *
+	 * @param string $path Path.
+	 * @return array|false
+	 */
+	private static function probe_one( $path ) {
 		$path = trim( (string) $path );
 		if ( '' === $path || false !== strpos( $path, "\0" ) ) {
 			return false;
@@ -67,9 +123,10 @@ class LLM_Trace_Cleaner_Image_Engine_Exiftool implements LLM_Trace_Cleaner_Image
 		if ( ! preg_match( '#^(/|[A-Za-z]:[\\\\/])#', $path ) ) {
 			return false;
 		}
-		if ( ! file_exists( $path ) || ! is_executable( $path ) ) {
+		if ( ! file_exists( $path ) || ! is_file( $path ) ) {
 			return false;
 		}
+		// En shared hosting is_executable() a veces falla; intentamos -ver igual.
 		$result = self::run_static( $path, array( '-ver' ), 10 );
 		if ( empty( $result['ok'] ) || empty( $result['stdout'] ) ) {
 			return false;

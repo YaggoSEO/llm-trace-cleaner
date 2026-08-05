@@ -25,7 +25,7 @@ Qué hace:
 #### ExifTool (opcional)
 
 1. Instala ExifTool en el servidor (p. ej. `apt install libimage-exiftool-perl` o binario desde exiftool.org).
-2. En **Imágenes → Ajustes**, activa ExifTool y pon la **ruta absoluta** (`/usr/bin/exiftool`).
+2. En **Imágenes → Ajustes**, activa ExifTool. La ruta por defecto es `/usr/bin/exiftool` (también se prueban `/usr/local/bin/exiftool` y otras rutas estándar).
 3. Pulsa **Probar ExifTool**.
 4. Guarda ajustes y aplica un perfil (p. ej. SEO local con ciudad rellenada).
 

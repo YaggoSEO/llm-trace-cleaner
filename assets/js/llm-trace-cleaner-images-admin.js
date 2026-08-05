@@ -222,11 +222,14 @@
   $('#llmtc-test-exiftool').on('click', function () {
     post('llmtc_image_test_exiftool', 'settings', { path: $('#llmtc-exiftool-path').val() })
       .done(function (resp) {
-        $('#llmtc-exiftool-msg').text(
-          resp && resp.success
-            ? ('OK v' + resp.data.version)
-            : ((resp && resp.data && resp.data.message) || 'Error')
-        );
+        if (resp && resp.success) {
+          if (resp.data && resp.data.path) {
+            $('#llmtc-exiftool-path').val(resp.data.path);
+          }
+          $('#llmtc-exiftool-msg').text('OK v' + resp.data.version + ' @ ' + resp.data.path);
+        } else {
+          $('#llmtc-exiftool-msg').text((resp && resp.data && resp.data.message) || 'Error');
+        }
       });
   });
 })(jQuery);
