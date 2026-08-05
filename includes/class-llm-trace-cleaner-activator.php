@@ -23,6 +23,7 @@ class LLM_Trace_Cleaner_Activator {
         
         // Crear tabla de logs
         self::create_log_table();
+        self::migrate_image_module();
         
         // Establecer opciones por defecto (solo si no existen)
         if (get_option('llm_trace_cleaner_auto_clean') === false) {
@@ -100,6 +101,47 @@ class LLM_Trace_Cleaner_Activator {
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+
+    /**
+     * Migración segura del módulo de imágenes (idempotente).
+     */
+    public static function migrate_image_module() {
+        $cap_file = plugin_dir_path( __FILE__ ) . 'class-llm-trace-cleaner-image-capabilities.php';
+        $log_file = plugin_dir_path( __FILE__ ) . 'class-llm-trace-cleaner-image-logger.php';
+        $prof_file = plugin_dir_path( __FILE__ ) . 'class-llm-trace-cleaner-image-profile.php';
+        $backup_file = plugin_dir_path( __FILE__ ) . 'class-llm-trace-cleaner-image-backup.php';
+
+        if ( file_exists( $cap_file ) ) {
+            require_once $cap_file;
+        }
+        if ( file_exists( $log_file ) ) {
+            require_once $log_file;
+        }
+        if ( file_exists( $prof_file ) ) {
+            require_once $prof_file;
+        }
+        if ( file_exists( $backup_file ) ) {
+            require_once $backup_file;
+        }
+
+        if ( class_exists( 'LLM_Trace_Cleaner_Image_Logger' ) ) {
+            LLM_Trace_Cleaner_Image_Logger::create_table();
+        }
+
+        if ( class_exists( 'LLM_Trace_Cleaner_Image_Capabilities' ) ) {
+            if ( false === get_option( 'llm_trace_cleaner_image_settings', false ) ) {
+                add_option( 'llm_trace_cleaner_image_settings', LLM_Trace_Cleaner_Image_Capabilities::default_settings(), '', false );
+            }
+        }
+
+        if ( class_exists( 'LLM_Trace_Cleaner_Image_Profile' ) ) {
+            LLM_Trace_Cleaner_Image_Profile::seed_defaults();
+        }
+
+        if ( class_exists( 'LLM_Trace_Cleaner_Image_Backup' ) ) {
+            LLM_Trace_Cleaner_Image_Backup::base_dir();
+        }
     }
 }
 

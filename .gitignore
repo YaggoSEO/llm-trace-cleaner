@@ -73,3 +73,14 @@ yarn.lock
 ehthumbs.db
 Thumbs.db
 initialize-headers.gs
+
+# GitNexus (índice local y archivos generados por el agente)
+.gitnexus/
+.claude/
+AGENTS.md
+CLAUDE.md
+
+# Skills de agente (ponytail y similares, instalación local)
+.agents/
+.cursor/skills/
+skills-lock.json

@@ -1,0 +1,5 @@
+.llmtc-images-wrap .llmtc-panel{background:#fff;padding:16px 20px;margin-top:12px;border:1px solid #c3c4c7;box-shadow:0 1px 1px rgba(0,0,0,.04)}
+.llmtc-progress{margin-top:12px}
+.llmtc-progress-bar{height:18px;background:#f0f0f1;border-radius:3px;overflow:hidden}
+.llmtc-progress-bar span{display:block;height:100%;width:0;background:#2271b1;transition:width .2s}
+.llmtc-report-out{background:#1d2327;color:#f0f0f1;padding:12px;max-height:420px;overflow:auto;white-space:pre-wrap;font-size:12px}

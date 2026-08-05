@@ -1,22 +1,43 @@
 # LLM Trace Cleaner
 
-Plugin de WordPress que elimina automáticamente atributos de rastreo de herramientas LLM (ChatGPT, Claude, Gemini, etc.) del contenido HTML de entradas y páginas.
+Plugin de WordPress que elimina rastros técnicos de herramientas LLM en el HTML y, desde la v1.7, también audita y sanea metadatos de imágenes (JPEG/PNG/WebP).
 
-## 📋 Descripción
+## Descripción
 
-**LLM Trace Cleaner** es un plugin diseñado para limpiar el contenido HTML de tu sitio WordPress eliminando todos los atributos de rastreo que las herramientas de inteligencia artificial (LLM) agregan al contenido cuando se copia y pega desde ellas.
+**LLM Trace Cleaner** limpia atributos de rastreo que ChatGPT, Claude, Gemini y similares insertan al pegar contenido, y añade un módulo opcional de **privacidad y gobierno de metadatos de imágenes**.
 
-### ¿Por qué usar este plugin?
+### Módulo de imágenes (v1.7+)
 
-Cuando copias contenido desde herramientas como ChatGPT, Claude o Gemini, estos servicios agregan atributos HTML ocultos para rastrear el contenido. Estos atributos:
-- Aumentan el tamaño del HTML
-- Pueden afectar el rendimiento
-- No son necesarios para el funcionamiento del sitio
-- Pueden contener información sensible
+Menú: **LLM Trace Cleaner → Imágenes**.
 
-Este plugin elimina automáticamente todos estos atributos, manteniendo tu contenido limpio y optimizado.
+Qué hace:
+- Auditar EXIF/IPTC/XMP y propiedades disponibles (Imagick preferente; GD como fallback de limpieza).
+- Eliminar datos sensibles (GPS, serie, prompts/workflows heurísticos, comentarios).
+- Aplicar perfiles: Privacidad máxima, Corporativo, SEO local, Fotografía original, Imagen generada/editada con IA.
+- Dry run (simulación), backup opcional y restauración.
+- Procesamiento manual, por lotes y (opcional) en nuevas subidas.
+- Distinguir **ubicación creada** vs **ubicación mostrada** / ámbito geográfico.
+- Detección heurística de C2PA: por defecto **no modifica** si hay indicios.
 
-## ✨ Características
+Qué **no** hace:
+- No elimina marcas de agua incrustadas en píxeles.
+- No garantiza indetectabilidad frente a detectores de IA ni borra SynthID.
+- No inventa cámara, objetivo, serie, fecha o GPS.
+- No valida manifiestos C2PA (solo heurística + aviso).
+- ExifTool queda fuera del MVP (desactivado).
+
+Valores iniciales seguros: módulo desactivado, dry run activado, backup activado, detener ante C2PA.
+
+Medios remotos (S3/offload sin archivo local): `unsupported_remote_storage`.
+
+Pruebas unitarias del módulo:
+```bash
+php tests/unit/run-image-unit-tests.php
+```
+
+---
+
+## Características (HTML)
 
 - ✅ **Limpieza automática**: Opción para limpiar automáticamente el contenido al guardar entradas/páginas
 - 🧹 **Limpieza manual**: Botón para escanear y limpiar todo el contenido existente
