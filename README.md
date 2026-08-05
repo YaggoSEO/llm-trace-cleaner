@@ -14,19 +14,30 @@ Qué hace:
 - Auditar EXIF/IPTC/XMP y propiedades disponibles (Imagick preferente; GD como fallback de limpieza).
 - Eliminar datos sensibles (GPS, serie, prompts/workflows heurísticos, comentarios).
 - Aplicar perfiles: Privacidad máxima, Corporativo, SEO local, Fotografía original, Imagen generada/editada con IA.
+- **Editar campos del perfil** (empresa, ciudad, copyright, etc.) en la pestaña Perfiles. SEO local usa *ubicación mostrada*, no GPS de captura.
 - Dry run (simulación), backup opcional y restauración.
 - Procesamiento manual, por lotes y (opcional) en nuevas subidas.
 - Distinguir **ubicación creada** vs **ubicación mostrada** / ámbito geográfico.
 - Detección heurística de C2PA: por defecto **no modifica** si hay indicios.
+- **ExifTool opcional** (v1.8+): escritura completa EXIF/IPTC/XMP; desactivado por defecto.
+- Reglas condicionales por MIME/carpeta/autor; AVIF opcional; export CSV/JSON de informes.
+
+#### ExifTool (opcional)
+
+1. Instala ExifTool en el servidor (p. ej. `apt install libimage-exiftool-perl` o binario desde exiftool.org).
+2. En **Imágenes → Ajustes**, activa ExifTool y pon la **ruta absoluta** (`/usr/bin/exiftool`).
+3. Pulsa **Probar ExifTool**.
+4. Guarda ajustes y aplica un perfil (p. ej. SEO local con ciudad rellenada).
+
+Sin ExifTool el plugin no falla: limpia con GD/Imagick y avisa si no puede escribir campos ricos.
 
 Qué **no** hace:
 - No elimina marcas de agua incrustadas en píxeles.
 - No garantiza indetectabilidad frente a detectores de IA ni borra SynthID.
 - No inventa cámara, objetivo, serie, fecha o GPS.
 - No valida manifiestos C2PA (solo heurística + aviso).
-- ExifTool queda fuera del MVP (desactivado).
 
-Valores iniciales seguros: módulo desactivado, dry run activado, backup activado, detener ante C2PA.
+Valores iniciales seguros: módulo desactivado, dry run activado, backup activado, detener ante C2PA, ExifTool desactivado.
 
 Medios remotos (S3/offload sin archivo local): `unsupported_remote_storage`.
 

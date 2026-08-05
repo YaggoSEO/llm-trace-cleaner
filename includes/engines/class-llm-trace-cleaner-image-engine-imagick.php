@@ -170,20 +170,32 @@ class LLM_Trace_Cleaner_Image_Engine_Imagick implements LLM_Trace_Cleaner_Image_
 	 * @return array
 	 */
 	public function write_metadata( $path, array $metadata ) {
-		$plan = array(
-			'remove'   => array(),
-			'preserve' => array( 'icc', 'orientation' ),
-			'set'      => array( array( 'action' => 'set', 'data' => $metadata ) ),
-			'warnings' => array(),
+		$mapped = LLM_Trace_Cleaner_Image_Tag_Map::to_imagick_props( $metadata );
+		$out    = array(
+			'success'            => false,
+			'written'            => array(),
+			'unsupported_fields' => $mapped['unsupported'],
+			'warnings'           => array(),
 		);
-		$tmp = $path . '.llmtc.tmp';
-		$res = $this->sanitize( $path, $tmp, $plan );
-		if ( ! empty( $res['success'] ) ) {
-			@rename( $tmp, $path );
-		} else {
-			@unlink( $tmp );
+		if ( empty( $mapped['props'] ) ) {
+			$out['success']  = true;
+			$out['warnings'][] = 'Imagick: sin propiedades simples que escribir.';
+			return $out;
 		}
-		return $res;
+		try {
+			$img = new Imagick( $path );
+			foreach ( $mapped['props'] as $key => $value ) {
+				$img->setImageProperty( $key, $value );
+				$out['written'][] = $key;
+			}
+			$img->writeImage( $path );
+			$img->clear();
+			$img->destroy();
+			$out['success'] = true;
+		} catch ( Exception $e ) {
+			$out['warnings'][] = 'Imagick write: ' . $e->getMessage();
+		}
+		return $out;
 	}
 
 	/**

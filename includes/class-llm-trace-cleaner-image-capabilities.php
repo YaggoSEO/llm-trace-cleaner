@@ -8,7 +8,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Detecta Imagick/GD y formatos soportados.
+ * Detecta Imagick/GD/ExifTool y formatos soportados.
  */
 class LLM_Trace_Cleaner_Image_Capabilities {
 
@@ -19,11 +19,27 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 		$imagick = extension_loaded( 'imagick' ) && class_exists( 'Imagick' );
 		$gd      = extension_loaded( 'gd' ) && function_exists( 'imagecreatefromjpeg' );
 
+		$settings = class_exists( 'LLM_Trace_Cleaner_Image_Manager' )
+			? LLM_Trace_Cleaner_Image_Manager::settings()
+			: self::default_settings();
+
+		$exiftool_info = false;
+		if ( ! empty( $settings['exiftool_enabled'] ) && ! empty( $settings['exiftool_path'] ) && class_exists( 'LLM_Trace_Cleaner_Image_Engine_Exiftool' ) ) {
+			$exiftool_info = LLM_Trace_Cleaner_Image_Engine_Exiftool::probe( $settings['exiftool_path'] );
+		}
+		$exiftool = (bool) $exiftool_info;
+
+		$mimes_list = array( 'image/jpeg', 'image/png', 'image/webp' );
+		if ( ! empty( $settings['allow_avif'] ) ) {
+			$mimes_list[] = 'image/avif';
+		}
+
 		$mimes = array();
-		foreach ( array( 'image/jpeg', 'image/png', 'image/webp' ) as $mime ) {
+		foreach ( $mimes_list as $mime ) {
 			$mimes[ $mime ] = array(
-				'imagick' => $imagick && self::imagick_supports_mime( $mime ),
-				'gd'      => $gd && self::gd_supports_mime( $mime ),
+				'imagick'  => $imagick && self::imagick_supports_mime( $mime ),
+				'gd'       => $gd && self::gd_supports_mime( $mime ),
+				'exiftool' => $exiftool,
 			);
 		}
 
@@ -34,16 +50,20 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 			$preferred = 'gd';
 		}
 
+		$avif = ( $imagick && self::imagick_supports_mime( 'image/avif' ) ) || $exiftool;
+
 		return array(
-			'imagick'           => $imagick,
-			'gd'                => $gd,
-			'preferred_engine'  => $preferred,
-			'mimes'             => $mimes,
-			'cleanup_only'      => ! $imagick && $gd,
-			'rich_write'        => $imagick,
-			'exiftool'          => false,
-			'webp_imagick'      => $imagick && self::imagick_supports_mime( 'image/webp' ),
-			'webp_gd'           => $gd && self::gd_supports_mime( 'image/webp' ),
+			'imagick'          => $imagick,
+			'gd'               => $gd,
+			'exiftool'         => $exiftool,
+			'exiftool_version' => $exiftool_info ? $exiftool_info['version'] : '',
+			'preferred_engine' => $preferred,
+			'mimes'            => $mimes,
+			'cleanup_only'     => ! $imagick && $gd && ! $exiftool,
+			'rich_write'       => $exiftool || $imagick,
+			'avif'             => $avif,
+			'webp_imagick'     => $imagick && self::imagick_supports_mime( 'image/webp' ),
+			'webp_gd'          => $gd && self::gd_supports_mime( 'image/webp' ),
 		);
 	}
 
@@ -59,6 +79,7 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 			'image/jpeg' => 'JPEG',
 			'image/png'  => 'PNG',
 			'image/webp' => 'WEBP',
+			'image/avif' => 'AVIF',
 		);
 		if ( ! isset( $map[ $mime ] ) ) {
 			return false;
@@ -92,7 +113,7 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 	}
 
 	/**
-	 * Resuelve el mejor motor disponible para un MIME.
+	 * Motor para strip/re-encode.
 	 *
 	 * @param string $mime MIME.
 	 * @return LLM_Trace_Cleaner_Image_Engine_Interface|null
@@ -118,7 +139,28 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 	}
 
 	/**
-	 * Settings por defecto del módulo.
+	 * Motor preferente para escritura rica.
+	 *
+	 * @param string $mime MIME.
+	 * @return LLM_Trace_Cleaner_Image_Engine_Interface|null
+	 */
+	public static function resolve_write_engine( $mime ) {
+		$settings = LLM_Trace_Cleaner_Image_Manager::settings();
+		if ( ! empty( $settings['exiftool_enabled'] ) && class_exists( 'LLM_Trace_Cleaner_Image_Engine_Exiftool' ) ) {
+			$et = new LLM_Trace_Cleaner_Image_Engine_Exiftool();
+			if ( $et->is_available() && $et->supports( $mime ) ) {
+				return $et;
+			}
+		}
+		$engine = self::resolve_engine( $mime );
+		if ( $engine && empty( $engine->get_capabilities()['cleanup_only'] ) ) {
+			return $engine;
+		}
+		return $engine;
+	}
+
+	/**
+	 * Settings por defecto.
 	 *
 	 * @return array
 	 */
@@ -135,6 +177,7 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 			'process_subsizes'            => 'large_only',
 			'batch_size'                  => 5,
 			'allowed_mimes'               => array( 'image/jpeg', 'image/png', 'image/webp' ),
+			'allow_avif'                  => false,
 			'preserve_icc'                => true,
 			'preserve_orientation'        => true,
 			'preserve_copyright'          => true,
@@ -142,8 +185,10 @@ class LLM_Trace_Cleaner_Image_Capabilities {
 			'stop_on_c2pa'                => true,
 			'exiftool_enabled'            => false,
 			'exiftool_path'               => '',
+			'exiftool_timeout'            => 30,
 			'delete_backups_on_uninstall' => false,
 			'wp_field_sync'               => 'set_if_empty',
+			'conditional_rules'           => array(),
 		);
 	}
 }

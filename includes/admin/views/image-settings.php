@@ -63,20 +63,52 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 				<td><input type="number" min="1" max="25" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[batch_size]" value="<?php echo esc_attr( $settings['batch_size'] ); ?>"></td>
 			</tr>
 			<tr>
-				<th><?php esc_html_e( 'Preservar ICC', 'llm-trace-cleaner' ); ?></th>
-				<td><label><input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[preserve_icc]" value="1" <?php checked( ! empty( $settings['preserve_icc'] ) ); ?>></label></td>
+				<th scope="row"><?php esc_html_e( 'Preservar ICC', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[preserve_icc]" value="1" <?php checked( ! empty( $settings['preserve_icc'] ) ); ?>>
+						<?php esc_html_e( 'Conservar el perfil de color ICC tras limpiar', 'llm-trace-cleaner' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'El perfil ICC describe cómo deben verse los colores (sRGB, Adobe RGB, etc.). Si lo eliminas, la imagen puede verse distinta en monitores, móviles o impresoras. Recomendado: activado. Con GD la conservación de ICC es limitada o nula.', 'llm-trace-cleaner' ); ?>
+					</p>
+				</td>
 			</tr>
 			<tr>
-				<th><?php esc_html_e( 'Preservar orientación', 'llm-trace-cleaner' ); ?></th>
-				<td><label><input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[preserve_orientation]" value="1" <?php checked( ! empty( $settings['preserve_orientation'] ) ); ?>></label></td>
+				<th scope="row"><?php esc_html_e( 'Preservar orientación', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[preserve_orientation]" value="1" <?php checked( ! empty( $settings['preserve_orientation'] ) ); ?>>
+						<?php esc_html_e( 'Aplicar y normalizar la orientación EXIF', 'llm-trace-cleaner' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'Muchas fotos de móvil guardan la rotación en metadatos, no en los píxeles. Al limpiar EXIF sin normalizar, la imagen puede mostrarse girada. Con esta opción, Imagick aplica la orientación a los píxeles antes de quitar metadatos. Recomendado: activado.', 'llm-trace-cleaner' ); ?>
+					</p>
+				</td>
 			</tr>
 			<tr>
-				<th><?php esc_html_e( 'Preservar copyright', 'llm-trace-cleaner' ); ?></th>
-				<td><label><input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[preserve_copyright]" value="1" <?php checked( ! empty( $settings['preserve_copyright'] ) ); ?>></label></td>
+				<th scope="row"><?php esc_html_e( 'Preservar copyright', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[preserve_copyright]" value="1" <?php checked( ! empty( $settings['preserve_copyright'] ) ); ?>>
+						<?php esc_html_e( 'No borrar campos de derechos de autor existentes', 'llm-trace-cleaner' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'Si la imagen ya trae copyright, crédito o autoría, el perfil no los eliminará al limpiar. Útil para fotos con licencia o material de terceros. Los perfiles corporativos pueden añadir autoría nueva además de conservar la existente.', 'llm-trace-cleaner' ); ?>
+					</p>
+				</td>
 			</tr>
 			<tr>
-				<th><?php esc_html_e( 'Detener ante C2PA', 'llm-trace-cleaner' ); ?></th>
-				<td><label><input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[stop_on_c2pa]" value="1" <?php checked( ! empty( $settings['stop_on_c2pa'] ) ); ?>></label></td>
+				<th scope="row"><?php esc_html_e( 'Detener ante C2PA', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[stop_on_c2pa]" value="1" <?php checked( ! empty( $settings['stop_on_c2pa'] ) ); ?>>
+						<?php esc_html_e( 'No modificar si hay indicios de credenciales de contenido', 'llm-trace-cleaner' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'C2PA (Content Credentials) firma la procedencia de la imagen. Re-encodear o limpiar metadatos puede invalidar esa firma. Con esta opción, si se detecta un posible bloque C2PA, el procesamiento se detiene y se registra un aviso. La detección en el MVP es heurística, no una validación criptográfica. Recomendado: activado.', 'llm-trace-cleaner' ); ?>
+					</p>
+				</td>
 			</tr>
 			<tr>
 				<th><?php esc_html_e( 'Modo estricto', 'llm-trace-cleaner' ); ?></th>
@@ -90,6 +122,42 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 						<option value="set_if_empty" <?php selected( $settings['wp_field_sync'], 'set_if_empty' ); ?>><?php esc_html_e( 'Solo si vacío', 'llm-trace-cleaner' ); ?></option>
 						<option value="overwrite" <?php selected( $settings['wp_field_sync'], 'overwrite' ); ?>><?php esc_html_e( 'Sobrescribir', 'llm-trace-cleaner' ); ?></option>
 					</select>
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Permitir AVIF', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[allow_avif]" value="1" <?php checked( ! empty( $settings['allow_avif'] ) ); ?>>
+						<?php esc_html_e( 'Procesar image/avif si el servidor lo soporta', 'llm-trace-cleaner' ); ?>
+					</label>
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'ExifTool', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_enabled]" value="1" <?php checked( ! empty( $settings['exiftool_enabled'] ) ); ?>>
+						<?php esc_html_e( 'Activar motor ExifTool (escritura EXIF/IPTC/XMP)', 'llm-trace-cleaner' ); ?>
+					</label>
+					<p>
+						<input type="text" class="large-text code" id="llmtc-exiftool-path" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_path]" value="<?php echo esc_attr( $settings['exiftool_path'] ); ?>" placeholder="/usr/bin/exiftool">
+					</p>
+					<p>
+						<label><?php esc_html_e( 'Timeout (s)', 'llm-trace-cleaner' ); ?>
+							<input type="number" min="5" max="120" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[exiftool_timeout]" value="<?php echo esc_attr( isset( $settings['exiftool_timeout'] ) ? $settings['exiftool_timeout'] : 30 ); ?>">
+						</label>
+						<button type="button" class="button" id="llmtc-test-exiftool"><?php esc_html_e( 'Probar ExifTool', 'llm-trace-cleaner' ); ?></button>
+						<span id="llmtc-exiftool-msg"></span>
+					</p>
+					<p class="description"><?php esc_html_e( 'Ruta absoluta al binario. Desactivado por defecto. Sin ExifTool el plugin sigue funcionando.', 'llm-trace-cleaner' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Reglas condicionales', 'llm-trace-cleaner' ); ?></th>
+				<td>
+					<textarea class="large-text code" rows="6" name="<?php echo esc_attr( LLM_Trace_Cleaner_Image_Manager::OPTION ); ?>[conditional_rules]"><?php echo esc_textarea( wp_json_encode( isset( $settings['conditional_rules'] ) ? $settings['conditional_rules'] : array(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></textarea>
+					<p class="description"><?php esc_html_e( 'JSON array. Cada regla: {"profile":"seo_local","mime":"image/jpeg","folder":"2024/08","max_bytes":0,"author":0}. Primera coincidencia gana. folder = ruta relativa dentro de uploads.', 'llm-trace-cleaner' ); ?></p>
 				</td>
 			</tr>
 		</table>

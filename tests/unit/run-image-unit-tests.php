@@ -29,6 +29,7 @@ require_once dirname( __DIR__, 2 ) . '/includes/class-llm-trace-cleaner-image-in
 require_once dirname( __DIR__, 2 ) . '/includes/class-llm-trace-cleaner-image-sanitizer.php';
 require_once dirname( __DIR__, 2 ) . '/includes/class-llm-trace-cleaner-image-capabilities.php';
 require_once dirname( __DIR__, 2 ) . '/includes/class-llm-trace-cleaner-image-profile.php';
+require_once dirname( __DIR__, 2 ) . '/includes/class-llm-trace-cleaner-image-tag-map.php';
 
 $fail = 0;
 
@@ -98,6 +99,38 @@ assert_true( true === $defaults['stop_on_c2pa'], 'default stop_on_c2pa' );
 
 $builtins = LLM_Trace_Cleaner_Image_Profile::builtins();
 assert_true( isset( $builtins['privacy'], $builtins['corporate'], $builtins['seo_local'], $builtins['photography'], $builtins['ai_generated'] ), '5 perfiles built-in' );
+
+$mapped = LLM_Trace_Cleaner_Image_Tag_Map::to_exiftool_args(
+	array(
+		'creator'  => array( 'name' => 'Ada' ),
+		'location' => array( 'shown' => array( 'city' => 'A Coruña', 'country_code' => 'ES' ) ),
+	)
+);
+assert_true( ! empty( $mapped['args'] ), 'tag-map genera args' );
+$joined = implode( ' ', $mapped['args'] );
+assert_true( false !== strpos( $joined, 'Artist=' ) || false !== strpos( $joined, '-Artist=' ), 'tag-map artist' );
+assert_true( false === strpos( strtolower( $joined ), 'gpslatitude' ), 'tag-map no GPS captura' );
+assert_true( false !== strpos( $joined, 'LocationShownCity' ) || false !== strpos( $joined, 'City=' ), 'tag-map city shown' );
+
+$imagick_map = LLM_Trace_Cleaner_Image_Tag_Map::to_imagick_props(
+	array(
+		'creator' => array( 'name' => 'Ada' ),
+		'location' => array( 'shown' => array( 'city' => 'A Coruña' ) ),
+	)
+);
+assert_true( isset( $imagick_map['props']['exif:Artist'] ), 'imagick artist prop' );
+assert_true( in_array( 'location.shown.city', $imagick_map['unsupported'], true ), 'imagick city unsupported' );
+
+$meta = LLM_Trace_Cleaner_Image_Profile::sanitize_metadata(
+	array(
+		'location' => array(
+			'shown' => array( 'city' => 'A Coruña', 'country_code' => 'es' ),
+			'created' => array( 'latitude' => 43.3 ),
+		),
+	)
+);
+assert_true( isset( $meta['location']['shown']['country_code'] ) && 'ES' === $meta['location']['shown']['country_code'], 'country code upper' );
+assert_true( ! isset( $meta['location']['created'] ), 'sanitize drops created GPS' );
 
 echo $fail ? "\n$fail failed\n" : "\nAll passed\n";
 exit( $fail ? 1 : 0 );

@@ -3,7 +3,7 @@
  * Plugin Name: LLM Trace Cleaner
  * Plugin URI: https://github.com/YaggoSEO/llm-trace-cleaner
  * Description: Elimina rastros de herramientas LLM del HTML y audita/sanea metadatos de imágenes (JPEG/PNG/WebP).
- * Version: 1.7.0
+ * Version: 1.8.0
  * Author: Yago Vázquez Gómez (Yaggoseo)
  * Author URI: https://yaggoseo.com
  * License: GPL v2 or later
@@ -19,7 +19,7 @@ defined('ABSPATH') || exit;
 // Verificar si las constantes ya están definidas (evita conflictos en actualizaciones)
 if (!defined('LLM_TRACE_CLEANER_VERSION')) {
     // Definir constantes del plugin
-    define('LLM_TRACE_CLEANER_VERSION', '1.7.0');
+    define('LLM_TRACE_CLEANER_VERSION', '1.8.0');
     define('LLM_TRACE_CLEANER_PLUGIN_DIR', plugin_dir_path(__FILE__));
     define('LLM_TRACE_CLEANER_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
@@ -188,10 +188,12 @@ if (!class_exists('LLM_Trace_Cleaner')) {
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-profile.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-inspector.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-sanitizer.php';
+        require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-tag-map.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-metadata-writer.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-backup.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-batch.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/class-llm-trace-cleaner-image-manager.php';
+        require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/engines/class-llm-trace-cleaner-image-engine-exiftool.php';
         require_once LLM_TRACE_CLEANER_PLUGIN_DIR . 'includes/admin/class-llm-trace-cleaner-image-admin.php';
     }
     

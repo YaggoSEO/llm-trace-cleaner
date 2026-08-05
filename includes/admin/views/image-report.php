@@ -27,6 +27,8 @@ $profiles      = LLM_Trace_Cleaner_Image_Profile::all();
 		<button type="button" class="button" id="llmtc-report-dry"><?php esc_html_e( 'Simular limpieza', 'llm-trace-cleaner' ); ?></button>
 		<button type="button" class="button button-primary" id="llmtc-report-apply"><?php esc_html_e( 'Aplicar perfil', 'llm-trace-cleaner' ); ?></button>
 		<button type="button" class="button" id="llmtc-report-restore"><?php esc_html_e( 'Restaurar backup', 'llm-trace-cleaner' ); ?></button>
+		<button type="button" class="button" id="llmtc-report-export-json"><?php esc_html_e( 'Exportar JSON', 'llm-trace-cleaner' ); ?></button>
+		<button type="button" class="button" id="llmtc-report-export-csv"><?php esc_html_e( 'Exportar CSV', 'llm-trace-cleaner' ); ?></button>
 	</p>
 	<pre id="llmtc-report-out" class="llmtc-report-out"><?php esc_html_e( 'Selecciona un adjunto y audita.', 'llm-trace-cleaner' ); ?></pre>
 	<?php if ( $attachment_id ) : ?>

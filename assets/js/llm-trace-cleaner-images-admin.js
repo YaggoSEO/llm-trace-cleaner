@@ -117,4 +117,116 @@
       showReport(resp && resp.data ? resp.data : resp);
     });
   });
+
+  function downloadText(filename, text) {
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  $(document).on('click', '#llmtc-report-export-json', function () {
+    post('llmtc_image_export_report', 'audit', {
+      attachment_id: $('#llmtc-report-id').val(),
+      format: 'json'
+    }).done(function (resp) {
+      if (resp && resp.success) {
+        downloadText('llmtc-report-' + $('#llmtc-report-id').val() + '.json', resp.data.content);
+      }
+    });
+  });
+
+  $(document).on('click', '#llmtc-report-export-csv', function () {
+    post('llmtc_image_export_report', 'audit', {
+      attachment_id: $('#llmtc-report-id').val(),
+      format: 'csv'
+    }).done(function (resp) {
+      if (resp && resp.success) {
+        downloadText('llmtc-report-' + $('#llmtc-report-id').val() + '.csv', resp.data.content);
+      }
+    });
+  });
+
+  function setNested(obj, path, value) {
+    var parts = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < parts.length - 1; i++) {
+      if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') cur[parts[i]] = {};
+      cur = cur[parts[i]];
+    }
+    var last = parts[parts.length - 1];
+    if (last === 'keywords') {
+      cur[last] = String(value).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    } else {
+      cur[last] = value;
+    }
+  }
+
+  $('#llmtc-profile-save').on('click', function () {
+    var meta = {};
+    $('.llmtc-meta').each(function () {
+      var path = $(this).data('path');
+      if (!path) return;
+      setNested(meta, path, $(this).val());
+    });
+    var profile = {
+      id: $('#llmtc-profile-id').val(),
+      description: $('#llmtc-profile-desc').val(),
+      metadata: meta
+    };
+    if ($('#llmtc-profile-name').length) {
+      profile.name = $('#llmtc-profile-name').val();
+      profile.force = 1;
+    }
+    post('llmtc_image_save_profile', 'profile', { profile: JSON.stringify(profile) })
+      .done(function (resp) {
+        $('#llmtc-profile-save-msg').text(resp && resp.success ? 'Guardado.' : ((resp && resp.data && resp.data.message) || 'Error'));
+      });
+  });
+
+  $('#llmtc-profile-duplicate').on('click', function () {
+    var source = $(this).data('source');
+    var newId = window.prompt('ID del nuevo perfil (a-z0-9_-):', source + '_copy');
+    if (!newId) return;
+    post('llmtc_image_duplicate_profile', 'profile', { source: source, new_id: newId })
+      .done(function (resp) {
+        if (resp && resp.success) {
+          window.location.search = '?page=llm-trace-cleaner-images&tab=profiles&edit=' + encodeURIComponent(resp.data.id);
+        } else {
+          alert((resp && resp.data && resp.data.message) || 'Error');
+        }
+      });
+  });
+
+  $('#llmtc-profile-export').on('click', function () {
+    post('llmtc_image_export_profiles', 'profile', {})
+      .done(function (resp) {
+        if (resp && resp.success) {
+          downloadText('llmtc-profiles.json', JSON.stringify(resp.data.profiles, null, 2));
+        }
+      });
+  });
+
+  $('#llmtc-profile-import').on('click', function () {
+    var json = $('#llmtc-profile-import-json').val();
+    post('llmtc_image_import_profiles', 'profile', { json: json })
+      .done(function (resp) {
+        alert(resp && resp.success ? 'Importado. Recarga la página.' : ((resp && resp.data && resp.data.message) || 'Error'));
+        if (resp && resp.success) window.location.reload();
+      });
+  });
+
+  $('#llmtc-test-exiftool').on('click', function () {
+    post('llmtc_image_test_exiftool', 'settings', { path: $('#llmtc-exiftool-path').val() })
+      .done(function (resp) {
+        $('#llmtc-exiftool-msg').text(
+          resp && resp.success
+            ? ('OK v' + resp.data.version)
+            : ((resp && resp.data && resp.data.message) || 'Error')
+        );
+      });
+  });
 })(jQuery);

@@ -16,10 +16,25 @@ $storage  = LLM_Trace_Cleaner_Image_Backup::storage_mb();
 	<table class="widefat striped">
 		<tbody>
 			<tr><th><?php esc_html_e( 'Módulo activo', 'llm-trace-cleaner' ); ?></th><td><?php echo ! empty( $settings['enabled'] ) ? 'Sí' : 'No'; ?></td></tr>
-			<tr><th><?php esc_html_e( 'Motor preferente', 'llm-trace-cleaner' ); ?></th><td><?php echo esc_html( $caps['preferred_engine'] ); ?></td></tr>
+			<tr><th><?php esc_html_e( 'Motor preferente (strip)', 'llm-trace-cleaner' ); ?></th><td><?php echo esc_html( $caps['preferred_engine'] ); ?></td></tr>
 			<tr><th>Imagick</th><td><?php echo $caps['imagick'] ? 'Sí' : 'No'; ?></td></tr>
-			<tr><th>GD</th><td><?php echo $caps['gd'] ? 'Sí' : 'No'; ?><?php echo $caps['cleanup_only'] ? ' (solo limpieza básica)' : ''; ?></td></tr>
-			<tr><th>ExifTool</th><td><?php esc_html_e( 'Desactivado en MVP', 'llm-trace-cleaner' ); ?></td></tr>
+			<tr><th>GD</th><td><?php echo $caps['gd'] ? 'Sí' : 'No'; ?><?php echo ! empty( $caps['cleanup_only'] ) ? ' (solo limpieza básica)' : ''; ?></td></tr>
+			<tr>
+				<th>ExifTool</th>
+				<td>
+					<?php
+					if ( ! empty( $caps['exiftool'] ) ) {
+						echo 'Sí — v' . esc_html( $caps['exiftool_version'] );
+					} elseif ( ! empty( $settings['exiftool_enabled'] ) ) {
+						echo esc_html__( 'Activado pero no detectado (revisa la ruta)', 'llm-trace-cleaner' );
+					} else {
+						echo esc_html__( 'Desactivado', 'llm-trace-cleaner' );
+					}
+					?>
+				</td>
+			</tr>
+			<tr><th><?php esc_html_e( 'Escritura rica', 'llm-trace-cleaner' ); ?></th><td><?php echo ! empty( $caps['rich_write'] ) ? 'Sí' : 'No'; ?></td></tr>
+			<tr><th>AVIF</th><td><?php echo ! empty( $caps['avif'] ) ? ( ! empty( $settings['allow_avif'] ) ? 'Sí (habilitado)' : 'Soportado (deshabilitado en ajustes)' ) : 'No'; ?></td></tr>
 			<tr><th><?php esc_html_e( 'Simulación (dry run)', 'llm-trace-cleaner' ); ?></th><td><?php echo ! empty( $settings['dry_run'] ) ? 'Sí' : 'No'; ?></td></tr>
 			<tr><th><?php esc_html_e( 'Backups (MB usados)', 'llm-trace-cleaner' ); ?></th><td><?php echo esc_html( (string) $storage ); ?></td></tr>
 			<tr><th><?php esc_html_e( 'Detener ante C2PA', 'llm-trace-cleaner' ); ?></th><td><?php echo ! empty( $settings['stop_on_c2pa'] ) ? 'Sí' : 'No'; ?></td></tr>
@@ -28,21 +43,26 @@ $storage  = LLM_Trace_Cleaner_Image_Backup::storage_mb();
 
 	<h3><?php esc_html_e( 'Formatos', 'llm-trace-cleaner' ); ?></h3>
 	<table class="widefat striped">
-		<thead><tr><th>MIME</th><th>Imagick</th><th>GD</th></tr></thead>
+		<thead><tr><th>MIME</th><th>Imagick</th><th>GD</th><th>ExifTool</th></tr></thead>
 		<tbody>
 		<?php foreach ( $caps['mimes'] as $mime => $support ) : ?>
 			<tr>
 				<td><?php echo esc_html( $mime ); ?></td>
 				<td><?php echo ! empty( $support['imagick'] ) ? 'Sí' : 'No'; ?></td>
 				<td><?php echo ! empty( $support['gd'] ) ? 'Sí' : 'No'; ?></td>
+				<td><?php echo ! empty( $support['exiftool'] ) ? 'Sí' : 'No'; ?></td>
 			</tr>
 		<?php endforeach; ?>
 		</tbody>
 	</table>
 
-	<?php if ( $caps['cleanup_only'] ) : ?>
+	<?php if ( empty( $caps['exiftool'] ) && empty( $caps['imagick'] ) ) : ?>
+		<div class="notice notice-warning inline"><p>
+			<?php esc_html_e( 'Sin Imagick ni ExifTool: puedes limpiar por re-encode (GD), pero no escribir autoría, copyright ni ubicación mostrada. Configura ExifTool en Ajustes o instala Imagick.', 'llm-trace-cleaner' ); ?>
+		</p></div>
+	<?php elseif ( empty( $caps['exiftool'] ) ) : ?>
 		<div class="notice notice-info inline"><p>
-			<?php esc_html_e( 'Solo GD está disponible: el módulo puede limpiar metadatos mediante re-encode, pero no escribir autoría/copyright/ubicación estructurada. Instala Imagick para escritura parcial.', 'llm-trace-cleaner' ); ?>
+			<?php esc_html_e( 'ExifTool desactivado: Imagick puede escribir algunos campos (artist/copyright/description). Para IPTC/XMP y ubicación mostrada estructurada, activa ExifTool.', 'llm-trace-cleaner' ); ?>
 		</p></div>
 	<?php endif; ?>
 </div>

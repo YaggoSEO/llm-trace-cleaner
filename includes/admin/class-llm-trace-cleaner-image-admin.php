@@ -42,6 +42,11 @@ class LLM_Trace_Cleaner_Image_Admin {
 		add_action( 'wp_ajax_llmtc_image_batch_tick', array( $this, 'ajax_batch_tick' ) );
 		add_action( 'wp_ajax_llmtc_image_batch_cancel', array( $this, 'ajax_batch_cancel' ) );
 		add_action( 'wp_ajax_llmtc_image_save_profile', array( $this, 'ajax_save_profile' ) );
+		add_action( 'wp_ajax_llmtc_image_duplicate_profile', array( $this, 'ajax_duplicate_profile' ) );
+		add_action( 'wp_ajax_llmtc_image_import_profiles', array( $this, 'ajax_import_profiles' ) );
+		add_action( 'wp_ajax_llmtc_image_export_profiles', array( $this, 'ajax_export_profiles' ) );
+		add_action( 'wp_ajax_llmtc_image_test_exiftool', array( $this, 'ajax_test_exiftool' ) );
+		add_action( 'wp_ajax_llmtc_image_export_report', array( $this, 'ajax_export_report' ) );
 
 		add_filter( 'media_row_actions', array( $this, 'media_row_actions' ), 10, 2 );
 	}
@@ -136,6 +141,38 @@ class LLM_Trace_Cleaner_Image_Admin {
 		$out['backup_retention_days']= max( 1, absint( $input['backup_retention_days'] ?? 30 ) );
 		$out['backup_max_storage_mb']= max( 10, absint( $input['backup_max_storage_mb'] ?? 1024 ) );
 		$out['wp_field_sync']        = sanitize_key( $input['wp_field_sync'] ?? 'set_if_empty' );
+		$out['exiftool_enabled']     = ! empty( $input['exiftool_enabled'] );
+		$out['exiftool_path']        = isset( $input['exiftool_path'] ) ? sanitize_text_field( $input['exiftool_path'] ) : '';
+		$out['exiftool_timeout']     = max( 5, min( 120, absint( $input['exiftool_timeout'] ?? 30 ) ) );
+		$out['allow_avif']           = ! empty( $input['allow_avif'] );
+		$out['allowed_mimes']        = array( 'image/jpeg', 'image/png', 'image/webp' );
+		if ( $out['allow_avif'] ) {
+			$out['allowed_mimes'][] = 'image/avif';
+		}
+
+		$rules_raw = isset( $input['conditional_rules'] ) ? $input['conditional_rules'] : '';
+		$rules     = array();
+		if ( is_string( $rules_raw ) && '' !== $rules_raw ) {
+			$decoded = json_decode( wp_unslash( $rules_raw ), true );
+			if ( is_array( $decoded ) ) {
+				$rules_raw = $decoded;
+			}
+		}
+		if ( is_array( $rules_raw ) ) {
+			foreach ( $rules_raw as $rule ) {
+				if ( ! is_array( $rule ) || empty( $rule['profile'] ) ) {
+					continue;
+				}
+				$rules[] = array(
+					'profile'   => sanitize_key( $rule['profile'] ),
+					'mime'      => isset( $rule['mime'] ) ? sanitize_text_field( $rule['mime'] ) : '',
+					'folder'    => isset( $rule['folder'] ) ? sanitize_text_field( $rule['folder'] ) : '',
+					'max_bytes' => isset( $rule['max_bytes'] ) ? absint( $rule['max_bytes'] ) : 0,
+					'author'    => isset( $rule['author'] ) ? absint( $rule['author'] ) : 0,
+				);
+			}
+		}
+		$out['conditional_rules'] = $rules;
 		return $out;
 	}
 
@@ -154,8 +191,30 @@ class LLM_Trace_Cleaner_Image_Admin {
 
 		echo '<div class="wrap llmtc-images-wrap">';
 		echo '<h1>' . esc_html__( 'LLM Trace Cleaner — Imágenes', 'llm-trace-cleaner' ) . '</h1>';
+
+		// Bloque explicativo (mismo estilo que Configuración HTML).
+		echo '<div style="background: #f0f6fc; border-left: 4px solid #2271b1; padding: 15px 20px; margin: 20px 0; border-radius: 4px;">';
+		echo '<h3 style="margin-top: 0; color: #2271b1;">' . esc_html__( '¿Cómo funciona el módulo de imágenes?', 'llm-trace-cleaner' ) . '</h3>';
+		echo '<p style="margin-bottom: 10px;">';
+		echo esc_html__( 'Este módulo audita y sanea metadatos de imágenes (JPEG, PNG y WebP): EXIF, IPTC, XMP y propiedades internas. Sirve para privacidad, normalización y autoría legítima, no para falsificar la procedencia de una imagen.', 'llm-trace-cleaner' );
+		echo '</p>';
+		echo '<p style="margin-bottom: 10px;">' . esc_html__( 'Puede:', 'llm-trace-cleaner' ) . '</p>';
+		echo '<ul style="margin-left: 20px; margin-bottom: 10px;">';
+		echo '<li>' . esc_html__( 'Detectar GPS, datos de dispositivo, software, prompts/workflows y otros rastros sensibles', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Aplicar perfiles (privacidad, corporativo, SEO local, fotografía, imagen generada/editada con IA)', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Simular cambios (dry run), crear copias de seguridad y restaurar el original', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Procesar adjuntos individuales o por lotes desde la biblioteca multimedia', 'llm-trace-cleaner' ) . '</li>';
+		echo '</ul>';
+		echo '<p style="margin-bottom: 10px;"><strong>' . esc_html__( 'Motores:', 'llm-trace-cleaner' ) . '</strong> ';
+		echo esc_html__( 'Imagick es preferente (auditoría y escritura parcial). GD solo limpia por re-encode y no escribe autoría/ubicación estructurada.', 'llm-trace-cleaner' );
+		echo '</p>';
+		echo '<p style="margin-bottom: 0; padding-top: 10px; border-top: 1px solid #c3c4c7;"><strong>' . esc_html__( 'Importante:', 'llm-trace-cleaner' ) . '</strong> ';
+		echo esc_html__( 'No elimina marcas de agua en píxeles ni garantiza indetectabilidad. Distingue ubicación creada de ubicación mostrada; no inventa cámara ni GPS. Si detecta posible C2PA, detiene el procesamiento por defecto.', 'llm-trace-cleaner' );
+		echo '</p>';
+		echo '</div>';
+
 		echo '<div class="notice notice-warning"><p>';
-		echo esc_html__( 'Modificar metadatos puede eliminar información de autoría o invalidar credenciales de procedencia. Usa simulación y copias de seguridad. Este módulo no elimina marcas de agua en píxeles ni garantiza indetectabilidad.', 'llm-trace-cleaner' );
+		echo esc_html__( 'Modificar metadatos puede eliminar información de autoría o invalidar credenciales de procedencia. Usa simulación y copias de seguridad antes de procesar en producción.', 'llm-trace-cleaner' );
 		echo '</p></div>';
 
 		$base = admin_url( 'admin.php?page=llm-trace-cleaner-images' );
@@ -349,5 +408,107 @@ class LLM_Trace_Cleaner_Image_Admin {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
 		wp_send_json_success( array( 'saved' => true ) );
+	}
+
+	/**
+	 * AJAX duplicate profile.
+	 */
+	public function ajax_duplicate_profile() {
+		check_ajax_referer( 'llmtc_image_profile', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Permiso denegado.' ), 403 );
+		}
+		$source = isset( $_POST['source'] ) ? sanitize_key( wp_unslash( $_POST['source'] ) ) : '';
+		$new_id = isset( $_POST['new_id'] ) ? sanitize_key( wp_unslash( $_POST['new_id'] ) ) : '';
+		$name   = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+		if ( ! $new_id ) {
+			$new_id = $source . '_copy_' . wp_generate_password( 4, false );
+		}
+		$result = LLM_Trace_Cleaner_Image_Profile::duplicate( $source, $new_id, $name );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+		wp_send_json_success( array( 'id' => $new_id ) );
+	}
+
+	/**
+	 * AJAX import profiles.
+	 */
+	public function ajax_import_profiles() {
+		check_ajax_referer( 'llmtc_image_profile', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Permiso denegado.' ), 403 );
+		}
+		$raw = isset( $_POST['json'] ) ? json_decode( wp_unslash( $_POST['json'] ), true ) : null;
+		if ( ! is_array( $raw ) ) {
+			wp_send_json_error( array( 'message' => 'JSON inválido.' ) );
+		}
+		$result = LLM_Trace_Cleaner_Image_Profile::import( $raw );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+		wp_send_json_success( array( 'imported' => true ) );
+	}
+
+	/**
+	 * AJAX export profiles.
+	 */
+	public function ajax_export_profiles() {
+		check_ajax_referer( 'llmtc_image_profile', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Permiso denegado.' ), 403 );
+		}
+		$id = isset( $_POST['id'] ) ? sanitize_key( wp_unslash( $_POST['id'] ) ) : '';
+		wp_send_json_success( array( 'profiles' => LLM_Trace_Cleaner_Image_Profile::export( $id ? $id : null ) ) );
+	}
+
+	/**
+	 * AJAX test ExifTool.
+	 */
+	public function ajax_test_exiftool() {
+		check_ajax_referer( 'llmtc_image_settings', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Permiso denegado.' ), 403 );
+		}
+		$path = isset( $_POST['path'] ) ? sanitize_text_field( wp_unslash( $_POST['path'] ) ) : '';
+		$probe = LLM_Trace_Cleaner_Image_Engine_Exiftool::probe( $path );
+		if ( ! $probe ) {
+			wp_send_json_error( array( 'message' => 'ExifTool no disponible en esa ruta (debe ser absoluta y ejecutable).' ) );
+		}
+		wp_send_json_success( $probe );
+	}
+
+	/**
+	 * AJAX export report JSON/CSV.
+	 */
+	public function ajax_export_report() {
+		check_ajax_referer( 'llmtc_image_audit', 'nonce' );
+		$id = isset( $_POST['attachment_id'] ) ? absint( $_POST['attachment_id'] ) : 0;
+		if ( ! $id || ! $this->can_edit_attachment( $id ) ) {
+			wp_send_json_error( array( 'message' => 'Permiso denegado.' ), 403 );
+		}
+		$format = isset( $_POST['format'] ) ? sanitize_key( wp_unslash( $_POST['format'] ) ) : 'json';
+		$manager = LLM_Trace_Cleaner_Image_Manager::get_instance();
+		$report  = $manager->audit_attachment( $id );
+		if ( isset( $report['path'] ) ) {
+			$report['path'] = basename( $report['path'] );
+		}
+		if ( 'csv' === $format ) {
+			$lines   = array( 'key,value' );
+			$flat    = array(
+				'mime'       => isset( $report['mime'] ) ? $report['mime'] : '',
+				'width'      => isset( $report['width'] ) ? $report['width'] : '',
+				'height'     => isset( $report['height'] ) ? $report['height'] : '',
+				'engine'     => isset( $report['engine'] ) ? $report['engine'] : '',
+				'risk_score' => isset( $report['risk_score'] ) ? $report['risk_score'] : '',
+				'c2pa'       => isset( $report['c2pa']['status'] ) ? $report['c2pa']['status'] : '',
+				'hash'       => isset( $report['hash_sha256'] ) ? $report['hash_sha256'] : '',
+			);
+			foreach ( $flat as $k => $v ) {
+				$lines[] = $k . ',' . '"' . str_replace( '"', '""', (string) $v ) . '"';
+			}
+			wp_send_json_success( array( 'format' => 'csv', 'content' => implode( "\n", $lines ) ) );
+		}
+		wp_send_json_success( array( 'format' => 'json', 'content' => wp_json_encode( $report ) ) );
 	}
 }

@@ -115,6 +115,9 @@ class LLM_Trace_Cleaner_Image_Manager {
 	public function should_process( $path, $mime ) {
 		$settings = self::settings();
 		$allowed  = isset( $settings['allowed_mimes'] ) ? $settings['allowed_mimes'] : array();
+		if ( ! empty( $settings['allow_avif'] ) && ! in_array( 'image/avif', $allowed, true ) ) {
+			$allowed[] = 'image/avif';
+		}
 		if ( ! in_array( $mime, $allowed, true ) ) {
 			return false;
 		}
@@ -124,12 +127,57 @@ class LLM_Trace_Cleaner_Image_Manager {
 		if ( ! file_exists( $path ) ) {
 			return false;
 		}
-		// GIF animado / no imagen.
 		$info = @getimagesize( $path );
-		if ( ! is_array( $info ) ) {
+		if ( ! is_array( $info ) && 'image/avif' !== $mime ) {
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	 * Resolver perfil por reglas condicionales.
+	 *
+	 * @param int    $attachment_id ID.
+	 * @param string $path Path.
+	 * @param string $mime MIME.
+	 * @param string $fallback Fallback profile id.
+	 * @return string
+	 */
+	public static function resolve_profile_id( $attachment_id, $path, $mime, $fallback ) {
+		$settings = self::settings();
+		$rules    = isset( $settings['conditional_rules'] ) && is_array( $settings['conditional_rules'] )
+			? $settings['conditional_rules']
+			: array();
+		$uploads  = wp_upload_dir();
+		$basedir  = ! empty( $uploads['basedir'] ) ? wp_normalize_path( $uploads['basedir'] ) : '';
+		$rel      = ( $basedir && 0 === strpos( wp_normalize_path( $path ), $basedir ) )
+			? ltrim( substr( wp_normalize_path( $path ), strlen( $basedir ) ), '/' )
+			: '';
+		$size     = file_exists( $path ) ? filesize( $path ) : 0;
+		$author   = $attachment_id ? (int) get_post_field( 'post_author', $attachment_id ) : 0;
+
+		foreach ( $rules as $rule ) {
+			if ( empty( $rule['profile'] ) ) {
+				continue;
+			}
+			if ( ! empty( $rule['mime'] ) && $rule['mime'] !== $mime ) {
+				continue;
+			}
+			if ( ! empty( $rule['folder'] ) && $rel && false === strpos( $rel, ltrim( $rule['folder'], '/' ) ) ) {
+				continue;
+			}
+			if ( ! empty( $rule['max_bytes'] ) && $size > (int) $rule['max_bytes'] ) {
+				continue;
+			}
+			if ( ! empty( $rule['author'] ) && (int) $rule['author'] !== $author ) {
+				continue;
+			}
+			$pid = sanitize_key( $rule['profile'] );
+			if ( LLM_Trace_Cleaner_Image_Profile::get( $pid ) ) {
+				return $pid;
+			}
+		}
+		return $fallback;
 	}
 
 	/**
@@ -285,7 +333,9 @@ class LLM_Trace_Cleaner_Image_Manager {
 		}
 
 		$attachment_id = isset( $context['attachment_id'] ) ? (int) $context['attachment_id'] : 0;
-		$profile_id    = ! empty( $context['profile'] ) ? $context['profile'] : $settings['default_profile'];
+		$profile_id    = ! empty( $context['profile'] )
+			? $context['profile']
+			: self::resolve_profile_id( $attachment_id, $path, $mime, $settings['default_profile'] );
 		$profile       = LLM_Trace_Cleaner_Image_Profile::get( $profile_id );
 		if ( ! $profile ) {
 			return new WP_Error( 'profile', 'Perfil no encontrado.' );
@@ -354,6 +404,12 @@ class LLM_Trace_Cleaner_Image_Manager {
 		}
 
 		$engine = LLM_Trace_Cleaner_Image_Capabilities::resolve_engine( $mime );
+		$write_engine = LLM_Trace_Cleaner_Image_Capabilities::resolve_write_engine( $mime );
+
+		// Si solo ExifTool está disponible para este MIME (p.ej. AVIF), usarlo también para sanitize.
+		if ( ! $engine && $write_engine && 'exiftool' === $write_engine->get_name() ) {
+			$engine = $write_engine;
+		}
 		if ( ! $engine ) {
 			$this->processing = false;
 			return new WP_Error( 'no_engine', 'No hay motor disponible.' );
@@ -367,8 +423,14 @@ class LLM_Trace_Cleaner_Image_Manager {
 			}
 		}
 
+		// Plan de strip: si write será ExifTool aparte, no aplicar set en sanitize Imagick/GD.
+		$strip_plan = $plan;
+		if ( $write_engine && 'exiftool' === $write_engine->get_name() && 'exiftool' !== $engine->get_name() ) {
+			$strip_plan['set'] = array();
+		}
+
 		$tmp = $path . '.llmtc.' . wp_generate_password( 6, false ) . '.tmp';
-		$res = $engine->sanitize( $path, $tmp, $plan );
+		$res = $engine->sanitize( $path, $tmp, $strip_plan );
 
 		if ( empty( $res['success'] ) || ! file_exists( $tmp ) || filesize( $tmp ) <= 0 ) {
 			@unlink( $tmp );
@@ -384,6 +446,24 @@ class LLM_Trace_Cleaner_Image_Manager {
 				)
 			);
 			return new WP_Error( 'write_failed', 'Fallo al escribir imagen procesada.' );
+		}
+
+		// Escritura rica post-strip con ExifTool (o Imagick).
+		$writer_result = array();
+		if ( $write_engine && ! empty( $plan['set'] ) && ( 'exiftool' === $write_engine->get_name() || 'imagick' === $write_engine->get_name() ) ) {
+			$writer        = new LLM_Trace_Cleaner_Image_Metadata_Writer();
+			$writer_result = $writer->apply( $write_engine, $tmp, $plan );
+			if ( ! empty( $writer_result['warnings'] ) ) {
+				$res['warnings'] = array_merge( isset( $res['warnings'] ) ? $res['warnings'] : array(), $writer_result['warnings'] );
+			}
+			if ( ! empty( $writer_result['written'] ) ) {
+				$res['written'] = array_merge( isset( $res['written'] ) ? $res['written'] : array(), $writer_result['written'] );
+			}
+			if ( ! empty( $writer_result['unsupported_fields'] ) ) {
+				$res['warnings'][] = 'Campos no escritos: ' . implode( ', ', $writer_result['unsupported_fields'] );
+			}
+		} elseif ( ! empty( $plan['set'] ) ) {
+			$res['warnings'][] = 'Hay campos a escribir pero el motor actual no soporta escritura rica. Instala ExifTool o Imagick.';
 		}
 
 		$check = @getimagesize( $tmp );
