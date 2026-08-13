@@ -7,6 +7,8 @@
 
 defined('ABSPATH') || exit;
 
+require_once __DIR__ . '/class-llm-trace-cleaner-unicode.php';
+
 /**
  * Clase LLM_Trace_Cleaner_Cleaner
  */
@@ -88,7 +90,8 @@ class LLM_Trace_Cleaner_Cleaner {
             'clean_unicode' => true,
             'clean_content_references' => true,
             'clean_utm_parameters' => true,
-            'track_locations' => true
+            'track_locations' => true,
+            'normalize_nbsp' => false,
         );
         $options = wp_parse_args($options, $default_options);
         
@@ -620,11 +623,10 @@ class LLM_Trace_Cleaner_Cleaner {
         // pero lo verificamos por si acaso
         $html = preg_replace_callback('/&#x([0-9a-fA-F]{1,6});/iu', function($matches) {
             $code = intval($matches[1], 16);
-            // Solo decodificar si no es un carácter invisible que estamos eliminando
-            if (!$this->is_invisible_unicode_char($code)) {
-                return $this->decode_unicode_char($matches[1], 16);
+            if (LLM_Trace_Cleaner_Unicode::is_always_strip($code)) {
+                return $matches[0];
             }
-            return $matches[0]; // Mantener si es invisible
+            return $this->decode_unicode_char($matches[1], 16);
         }, $html);
         
         return $html;
@@ -640,9 +642,9 @@ class LLM_Trace_Cleaner_Cleaner {
     private function decode_unicode_char($hex_code, $base = 16) {
         $code = intval($hex_code, $base);
         
-        // No decodificar caracteres invisibles que estamos eliminando
-        if ($this->is_invisible_unicode_char($code)) {
-            return ''; // Eliminar caracteres invisibles
+        // Solo borrar en decode los que no dependen de contexto (ZWJ/VS/bidi van al walker).
+        if (LLM_Trace_Cleaner_Unicode::is_always_strip($code)) {
+            return '';
         }
         
         // Solo decodificar si es un carácter válido
@@ -668,37 +670,7 @@ class LLM_Trace_Cleaner_Cleaner {
      * @return bool True si es un carácter invisible que eliminamos
      */
     private function is_invisible_unicode_char($code) {
-        // Lista de códigos Unicode invisibles que eliminamos
-        $invisible_codes = array(
-            0x200B, // Zero Width Space
-            0x200C, // Zero Width Non-Joiner
-            0x200D, // Zero Width Joiner
-            0xFEFF, // Zero Width No-Break Space / BOM
-            0x2060, // Word Joiner
-            0x00AD, // Soft Hyphen
-            0x2063, // Invisible Separator
-            0x2064, // Invisible Plus
-            0x2062, // Invisible Times
-            0x200E, // Left-to-Right Mark
-            0x200F, // Right-to-Left Mark
-            0x202A, // Left-to-Right Embedding
-            0x202B, // Right-to-Left Embedding
-            0x202C, // Pop Directional Formatting
-            0x202D, // Left-to-Right Override
-            0x202E, // Right-to-Left Override
-            0x180E, // Mongolian Vowel Separator
-            0x3000, // Invisible Ideographic Space
-            0xFFFC, // Object Replacement Character
-        );
-        
-        // Rangos de caracteres invisibles
-        if (($code >= 0x2066 && $code <= 0x2069) || // Bidirectional Isolates
-            ($code >= 0xE0000 && $code <= 0xE007F) || // Tag Characters
-            ($code >= 0xFE00 && $code <= 0xFE0F)) { // Variation Selectors
-            return true;
-        }
-        
-        return in_array($code, $invisible_codes);
+        return LLM_Trace_Cleaner_Unicode::is_always_strip( (int) $code );
     }
     
     /**
@@ -863,9 +835,13 @@ class LLM_Trace_Cleaner_Cleaner {
         'Zero Width No-Break Space / BOM (U+FEFF)' => '/\x{FEFF}/u',
         'Word Joiner (U+2060)' => '/\x{2060}/u',
         'Soft Hyphen (U+00AD)' => '/\x{00AD}/u',
+        'Combining Grapheme Joiner (U+034F)' => '/\x{034F}/u',
+        'Arabic Letter Mark (U+061C)' => '/\x{061C}/u',
+        'Function Application (U+2061)' => '/\x{2061}/u',
         'Invisible Separator (U+2063)' => '/\x{2063}/u',
         'Invisible Plus (U+2064)' => '/\x{2064}/u',
         'Invisible Times (U+2062)' => '/\x{2062}/u',
+        'Deprecated format controls (U+206A–U+206F)' => '/[\x{206A}-\x{206F}]/u',
         'Left-to-Right Mark (U+200E)' => '/\x{200E}/u',
         'Right-to-Left Mark (U+200F)' => '/\x{200F}/u',
         'Left-to-Right Embedding (U+202A)' => '/\x{202A}/u',
@@ -876,9 +852,11 @@ class LLM_Trace_Cleaner_Cleaner {
         'Bidirectional Isolates (U+2066–U+2069)' => '/[\x{2066}-\x{2069}]/u',
         'Mongolian Vowel Separator (U+180E)' => '/\x{180E}/u',
         'Tag Characters (U+E0000–U+E007F)' => '/[\x{E0000}-\x{E007F}]/u',
-        'Invisible Ideographic Space (U+3000)' => '/\x{3000}/u',
+        'Variation Selectors (U+E0100–U+E01EF)' => '/[\x{E0100}-\x{E01EF}]/u',
+        'Interlinear annotation (U+FFF9–U+FFFB)' => '/[\x{FFF9}-\x{FFFB}]/u',
         'Object Replacement Character (U+FFFC)' => '/\x{FFFC}/u',
         'Variation Selectors (U+FE00–U+FE0F)' => '/[\x{FE00}-\x{FE0F}]/u',
+        'Space homoglyphs' => '/[\x{1680}\x{2000}-\x{200A}\x{202F}\x{205F}\x{3000}]/u',
     );
 
     /**
@@ -889,42 +867,61 @@ class LLM_Trace_Cleaner_Cleaner {
      * @return string
      */
     private function remove_invisible_unicode($html, $options = array()) {
-        $map = apply_filters('llm_trace_cleaner_unicode_map', $this->invisible_unicode_map);
-        if (empty($map) || !is_array($map)) {
-            return $html;
-        }
-        
-        $total_removed = 0;
-        foreach ($map as $label => $pattern) {
-            $count = 0;
-            $html = preg_replace($pattern, '', $html, -1, $count);
-            if ($count > 0) {
-                $total_removed += $count;
-                $this->increment_stat('unicode: ' . $label, $count);
-                
-                // Registrar ubicación genérica para Unicode (no podemos determinar ubicación exacta sin DOM)
-                if (!empty($options['track_locations'])) {
-                    $this->record_change_location('unicode', $label, array(
+        $html   = html_entity_decode( $html, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $result = LLM_Trace_Cleaner_Unicode::clean( $html, $options );
+        $html   = $result['text'];
+
+        foreach ( $result['stats'] as $label => $count ) {
+            $this->increment_stat( 'unicode: ' . $label, $count );
+            if ( ! empty( $options['track_locations'] ) && $count > 0 ) {
+                $this->record_change_location(
+                    'unicode',
+                    $label,
+                    array(
                         'block_type' => 'Text Content',
                         'block_name' => null,
-                        'class' => null
-                    ));
+                        'class'      => null,
+                    )
+                );
+            }
+        }
+
+        $map      = apply_filters( 'llm_trace_cleaner_unicode_map', $this->invisible_unicode_map );
+        $defaults = $this->invisible_unicode_map;
+        if ( is_array( $map ) ) {
+            foreach ( $map as $label => $pattern ) {
+                if ( isset( $defaults[ $label ] ) && $defaults[ $label ] === $pattern ) {
+                    continue;
+                }
+                if ( ! is_string( $pattern ) || '' === $pattern ) {
+                    continue;
+                }
+                $count = 0;
+                $html  = preg_replace( $pattern, '', $html, -1, $count );
+                if ( $count > 0 ) {
+                    $this->increment_stat( 'unicode: ' . $label, $count );
+                    if ( ! empty( $options['track_locations'] ) ) {
+                        $this->record_change_location(
+                            'unicode',
+                            $label,
+                            array(
+                                'block_type' => 'Text Content',
+                                'block_name' => null,
+                                'class'      => null,
+                            )
+                        );
+                    }
                 }
             }
         }
-        
-        // Asegurar que las entidades HTML estén correctamente formateadas después de eliminar Unicode
-        // Decodificar entidades HTML que puedan haberse corrompido
-        $html = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        
-        // Volver a codificar solo las entidades necesarias para mantener el HTML válido
-        // Esto asegura que < y > se mantengan como caracteres, no como entidades
+
+        $html = html_entity_decode( $html, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         $html = str_replace(
-            array('&lt;', '&gt;', '&amp;', '&quot;', '&#039;'),
-            array('<', '>', '&', '"', "'"),
+            array( '&lt;', '&gt;', '&amp;', '&quot;', '&#039;' ),
+            array( '<', '>', '&', '"', "'" ),
             $html
         );
-        
+
         return $html;
     }
 
@@ -1213,16 +1210,9 @@ class LLM_Trace_Cleaner_Cleaner {
             }
         }
         
-        // Analizar Unicode
-        $unicode_map = $this->get_invisible_unicode_map();
-        foreach ($unicode_map as $label => $pattern) {
-            preg_match_all($pattern, $html, $matches);
-            $count = count($matches[0]);
-            if ($count > 0) {
-                $analysis['unicode_found'][$label] = $count;
-                $analysis['total_unicode'] += $count;
-            }
-        }
+        $unicode_inspect = LLM_Trace_Cleaner_Unicode::inspect( $html );
+        $analysis['unicode_found'] = $unicode_inspect['found'];
+        $analysis['total_unicode'] = $unicode_inspect['total'];
         
         // Analizar referencias de contenido (ContentReference)
         $content_ref_patterns = array(

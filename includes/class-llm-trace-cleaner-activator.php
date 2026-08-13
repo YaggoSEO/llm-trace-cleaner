@@ -61,6 +61,9 @@ class LLM_Trace_Cleaner_Activator {
         if (get_option('llm_trace_cleaner_clean_unicode') === false) {
             add_option('llm_trace_cleaner_clean_unicode', false); // Desactivado por defecto
         }
+        if (get_option('llm_trace_cleaner_normalize_nbsp') === false) {
+            add_option('llm_trace_cleaner_normalize_nbsp', false);
+        }
         
         // Limpiar cache de rewrite rules
         flush_rewrite_rules();

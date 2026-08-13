@@ -50,9 +50,10 @@ Valores iniciales seguros: módulo desactivado, dry run activado, backup activad
 
 Medios remotos (S3/offload sin archivo local): `unsupported_remote_storage`.
 
-Pruebas unitarias del módulo:
+Pruebas unitarias:
 ```bash
 php tests/unit/run-image-unit-tests.php
+php tests/unit/run-unicode-unit-tests.php
 ```
 
 ---
@@ -60,7 +61,7 @@ php tests/unit/run-image-unit-tests.php
 ## Características (HTML)
 
 - ✅ **Limpieza automática**: Opción para limpiar automáticamente el contenido al guardar entradas/páginas
-- 🧹 **Limpieza manual**: Botón para escanear y limpiar todo el contenido existente
+- ✨ **Unicode contextual (v1.8.3)**: quita marcas invisibles huérfanas y conserva emoji, ZWNJ en árabe/hebreo y bidi equilibrado
 - 📊 **Sistema de logging**: Registro completo de todas las acciones realizadas con detección inteligente de atributos eliminados
 - ⚡ **Procesamiento optimizado**: Sistema de lotes para evitar timeouts en sitios grandes
 - 📈 **Barra de progreso**: Visualización en tiempo real del progreso de limpieza
@@ -168,33 +169,29 @@ El plugin elimina parámetros UTM de los enlaces que algunos LLMs agregan autom�
 
 - Y cualquier otro parámetro `utm_*` - **Uso**: Parámetros de seguimiento estándar de marketing. **Riesgo**: Todos los parámetros UTM pueden ser utilizados para rastrear el origen del tráfico y correlacionar contenido con sesiones específicas del LLM, comprometiendo la privacidad y la originalidad percibida del contenido.
 
-### Caracteres Unicode invisibles eliminados
+### Caracteres Unicode invisibles (v1.8.3+)
 
-El plugin también elimina caracteres invisibles que suelen usarse para marcas, manipulación del renderizado o confusión visual. Algunos ejemplos:
+La limpieza es **contextual**: no borra a ciegas. Conserva lo que el texto necesita para renderizar bien y solo elimina portadores huérfanos o de marcado.
 
-- **Zero Width Space (U+200B), ZWNJ (U+200C), ZWJ (U+200D)** - **Uso**: Caracteres de ancho cero utilizados para controlar el comportamiento de palabras y espacios en diferentes idiomas. **Riesgo**: Pueden ser utilizados como marcas de agua invisibles para rastrear contenido. Los buscadores y sistemas de detección de plagio pueden identificar estos caracteres como señales de contenido generado o copiado. También pueden causar problemas de indexación y búsqueda.
+**Se conservan por defecto**
+- Pegamento de emoji: ZWJ (U+200D) y VS15/VS16 (U+FE0E/U+FE0F) tras una base emoji (p. ej. 👨‍👩‍👧, ⚖️).
+- ZWNJ (U+200C) entre letras de escrituras complejas (árabe, hebreo, índicas, etc.).
+- Controles bidi emparejados (LRE/RLE/LRO/RLO + PDF; aislantes + PDI).
+- Function application e operadores invisibles de matemáticas (U+2061–U+2064) entre caracteres visibles.
+- NBSP (U+00A0 / `&nbsp;` de WordPress). Opción en ajustes: *Normalizar también espacios de no separación*.
 
-- **Zero Width No-Break Space / BOM (U+FEFF)** - **Uso**: Marca de orden de bytes (BOM) o espacio de no separación invisible. **Riesgo**: Puede ser utilizado como marca de agua para identificar la fuente del contenido. Su presencia puede causar problemas de codificación y renderizado en diferentes navegadores y sistemas.
+**Se eliminan (huérfanos o de marcado)**
+- Zero Width Space (U+200B), BOM (U+FEFF), Word Joiner (U+2060), soft hyphen (U+00AD).
+- ZWJ/ZWNJ/VS entre letras latinas (marcas de agua típicas de pegado LLM).
+- RLO/LRO y bidi sin pareja (pueden invertir visualmente el texto).
+- Tag characters (U+E0000–U+E007F), anotación interlineal (U+FFF9–U+FFFB), Object Replacement (U+FFFC).
+- Combining Grapheme Joiner, Arabic Letter Mark y VS17–256 cuando no hay base válida.
+- Controles de formato deprecados (U+206A–U+206F).
 
-- **Word Joiner (U+2060), Invisible Separator (U+2063), Invisible Plus (U+2064), Invisible Times (U+2062)** - **Uso**: Caracteres invisibles para controlar el comportamiento de palabras y operadores matemáticos. **Riesgo**: Pueden ser utilizados como marcas de agua o para ocultar información. Su presencia puede afectar la indexación del contenido y ser detectada por sistemas de análisis de texto.
+**Se normalizan a espacio normal (U+0020)**
+- Espacios homógrafos: en/em/thin/hair (U+2000–U+200A), NNBSP (U+202F), espacio matemático (U+205F), espacio ideográfico (U+3000). El U+3000 ya no se borra (evita pegar palabras).
 
-- **Soft Hyphen (U+00AD)** - **Uso**: Guion suave que solo se muestra cuando es necesario para dividir palabras. **Riesgo**: Aunque tiene un uso legítimo, puede ser utilizado para marcar contenido o causar problemas de renderizado. Los buscadores pueden interpretarlo de manera inconsistente.
-
-- **Marcas de direccionalidad y control bidi: LRM (U+200E), RLM (U+200F), LRE/RLE/PDF/LRO/RLO (U+202A–U+202E), aislantes (U+2066–U+2069)** - **Uso**: Controlan la dirección del texto (izquierda a derecha, derecha a izquierda) en idiomas bidireccionales. **Riesgo**: Pueden ser utilizados para ocultar información o manipular el renderizado del texto. Su uso incorrecto puede causar problemas graves de visualización y ser detectado como contenido sospechoso por sistemas de seguridad.
-
-- **Mongolian Vowel Separator (U+180E)** - **Uso**: Separador de vocales en el idioma mongol. **Riesgo**: Raramente necesario fuera de contextos específicos de idioma mongol. Su presencia puede ser una señal de contenido manipulado o marcado.
-
-- **Tag Characters (U+E0000–U+E007F)** - **Uso**: Caracteres de etiquetado privado utilizados para metadatos. **Riesgo**: **ALTO RIESGO**: Estos caracteres están específicamente diseñados para almacenar información oculta y pueden contener marcas de agua, identificadores de fuente, o metadatos sensibles. Su presencia es una señal clara de contenido marcado o rastreado.
-
-- **Invisible Ideographic Space (U+3000)** - **Uso**: Espacio ideográfico invisible usado en idiomas CJK (chino, japonés, coreano). **Riesgo**: Puede ser utilizado como marca de agua o causar problemas de renderizado en contextos no CJK. Su presencia puede afectar la indexación y búsqueda del contenido.
-
-- **Object Replacement Character (U+FFFC)** - **Uso**: Marcador de posición para objetos embebidos. **Riesgo**: Puede causar problemas de renderizado y ser utilizado para ocultar información. Su presencia puede indicar contenido mal formateado o manipulado.
-
-- **Variation Selectors (U+FE00–U+FE0F)** - **Uso**: Controlan variaciones visuales de caracteres Unicode. **Riesgo**: Pueden ser utilizados para crear marcas de agua invisibles o manipular la apariencia del texto. Su uso excesivo puede ser detectado como contenido sospechoso.
-
-**Riesgo general de caracteres Unicode invisibles**: Estos caracteres pueden ser utilizados para crear "marcas de agua" invisibles que permiten a los LLMs rastrear y verificar si el contenido fue generado por ellos. Además, pueden causar problemas de indexación en buscadores, afectar la accesibilidad, y ser detectados por sistemas de detección de plagio o contenido generado por IA.
-
-Estos caracteres se registran en el log con el prefijo "unicode: ..." para que puedas ver exactamente cuál fue eliminado.
+El análisis previo cuenta solo lo que **se limpiaría**, no el ZWJ de un emoji. El log usa el prefijo `unicode: ...`. El mapa sigue siendo extensible con el filtro `llm_trace_cleaner_unicode_map` (patrones extra, no sustituye el clasificador).
 
 ## 📦 Requisitos
 
@@ -302,6 +299,7 @@ llm-trace-cleaner/
 ├── includes/
 │   ├── class-llm-trace-cleaner-activator.php    # Activación/desactivación
 │   ├── class-llm-trace-cleaner-cleaner.php      # Lógica de limpieza HTML
+│   ├── class-llm-trace-cleaner-unicode.php      # Unicode contextual (emoji, bidi, espacios)
 │   ├── class-llm-trace-cleaner-logger.php       # Sistema de logging
 │   ├── class-llm-trace-cleaner-cache.php        # Gestión de caché
 │   ├── class-llm-trace-cleaner-admin.php        # Interfaz de administración
@@ -415,6 +413,24 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.8.3
+- **Unicode contextual**: conserva pegamento de emoji (ZWJ/VS16), ZWNJ en árabe/hebreo y bidi equilibrado; elimina solo marcas huérfanas.
+- Amplía Cf cubiertos (CGJ, ALM, U+206A–F, VS17–256, anotación interlineal) y normaliza espacios homógrafos a U+0020 en lugar de borrar el ideográfico.
+- El análisis previo ya no cuenta ZWJ de emoji como residuo a limpiar. NBSP de WordPress se preserva; opción opcional para normalizarlo.
+- Tests: `php tests/unit/run-unicode-unit-tests.php`.
+
+### 1.8.2
+- Documentación: Imagick en hosting compartido; ExifTool solo VPS/dedicado.
+
+### 1.8.1
+- ExifTool: ruta por defecto `/usr/bin/exiftool` y sondeo de rutas habituales.
+
+### 1.8.0
+- Módulo de imágenes fase 2: editor de perfiles y motor ExifTool opcional.
+
+### 1.7.0
+- Módulo de auditoría y saneamiento de metadatos de imágenes (JPEG/PNG/WebP).
 
 ### 1.6.4
 - **Corrección crítica**: Limpieza de parámetros UTM y caracteres Unicode en bloques de Gutenberg y page builders antes de restaurarlos. Los bloques se extraían antes de la limpieza y se restauraban después, reintroduciendo los elementos que debían eliminarse. Ahora se limpian también dentro de los bloques antes de restaurarlos.

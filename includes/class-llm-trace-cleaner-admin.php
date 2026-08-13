@@ -121,6 +121,7 @@ class LLM_Trace_Cleaner_Admin {
             
             update_option('llm_trace_cleaner_clean_attributes', isset($_POST['llm_trace_cleaner_clean_attributes']));
             update_option('llm_trace_cleaner_clean_unicode', isset($_POST['llm_trace_cleaner_clean_unicode']));
+            update_option('llm_trace_cleaner_normalize_nbsp', isset($_POST['llm_trace_cleaner_normalize_nbsp']));
             update_option('llm_trace_cleaner_clean_content_references', isset($_POST['llm_trace_cleaner_clean_content_references']));
             update_option('llm_trace_cleaner_clean_utm_parameters', isset($_POST['llm_trace_cleaner_clean_utm_parameters']));
             
@@ -515,6 +516,7 @@ class LLM_Trace_Cleaner_Admin {
                         'clean_unicode' => get_option('llm_trace_cleaner_clean_unicode', false),
                         'clean_content_references' => get_option('llm_trace_cleaner_clean_content_references', true),
                         'clean_utm_parameters' => get_option('llm_trace_cleaner_clean_utm_parameters', true),
+                        'normalize_nbsp' => (bool) get_option('llm_trace_cleaner_normalize_nbsp', false),
                         'track_locations' => true
                     );
                     
@@ -2031,8 +2033,16 @@ class LLM_Trace_Cleaner_Admin {
                                             <strong><?php echo esc_html__('Limpiar caracteres Unicode invisibles', 'llm-trace-cleaner'); ?></strong>
                                         </label>
                                         <p class="description" style="margin-left: 25px; margin-top: 5px;">
-                                            <?php echo esc_html__('Elimina caracteres invisibles como Zero Width Space, Zero Width Non-Joiner, etc.', 'llm-trace-cleaner'); ?>
+                                            <?php echo esc_html__('Elimina caracteres invisibles (ZWSP, tags, bidi huérfano). Conserva emoji (ZWJ/VS16) y ZWNJ en árabe/hebreo. Los espacios raros (en/em/hair) pasan a espacio normal; el NBSP de WordPress se deja.', 'llm-trace-cleaner'); ?>
                                         </p>
+                                        <label style="display: block; margin-left: 25px; margin-top: 8px;">
+                                            <input type="checkbox"
+                                                   name="llm_trace_cleaner_normalize_nbsp"
+                                                   id="llm_trace_cleaner_normalize_nbsp"
+                                                   value="1"
+                                                   <?php checked(get_option('llm_trace_cleaner_normalize_nbsp', false), true); ?>>
+                                            <?php echo esc_html__('Normalizar también espacios de no separación (NBSP / &nbsp;)', 'llm-trace-cleaner'); ?>
+                                        </label>
                                         <label style="display: block; margin-top: 15px;">
                                             <input type="checkbox" 
                                                    name="llm_trace_cleaner_clean_content_references" 
