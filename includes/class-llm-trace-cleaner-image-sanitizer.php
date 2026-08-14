@@ -28,7 +28,7 @@ class LLM_Trace_Cleaner_Image_Sanitizer {
 		);
 
 		$c2pa_status = isset( $audit['c2pa']['status'] ) ? $audit['c2pa']['status'] : 'not_detected';
-		if ( ! empty( $settings['stop_on_c2pa'] ) && in_array( $c2pa_status, array( 'possibly_detected', 'detected_unverified', 'verified' ), true ) ) {
+		if ( ! empty( $settings['stop_on_c2pa'] ) && in_array( $c2pa_status, array( 'possibly_detected', 'detected_unverified', 'verified', 'confirmed' ), true ) ) {
 			$plan['blocked']    = true;
 			$plan['warnings'][] = 'Procesamiento detenido: posible C2PA detectado. Re-encodear puede invalidar credenciales. Acción explícita requerida.';
 			return $plan;

@@ -18,10 +18,24 @@ Qué hace:
 - Dry run (simulación), backup opcional y restauración.
 - Procesamiento manual, por lotes y (opcional) en nuevas subidas.
 - Distinguir **ubicación creada** vs **ubicación mostrada** / ámbito geográfico.
-- Detección heurística de C2PA: por defecto **no modifica** si hay indicios.
 - Hints XMP de procedencia (v1.8.4): `digitalSourceType`, `trainedAlgorithmicMedia`, `AIGC`.
+- **C2PA estructural (v1.8.5)**: parser de PNG `caBX` / `juMB` y JPEG APP11+JUMBF. Confianza `confirmed` / `probable` / `informational`. Por defecto **detiene** el saneamiento si es confirmed o probable. No escanea IDAT/SOS. Aviso de soft-binding en el informe.
 - **ExifTool opcional** (v1.8+): escritura completa EXIF/IPTC/XMP; **solo VPS/dedicado**. En hosting compartido pide **Imagick**.
 - Reglas condicionales por MIME/carpeta/autor; AVIF opcional; export CSV/JSON de informes.
+
+#### Cómo funciona C2PA / Content Credentials
+
+El informe de cada imagen incluye un bloque C2PA con **estado**, **confianza** y, si aplica, un **aviso de soft-binding**.
+
+| Confianza | Qué significa | ¿Se detiene el saneamiento? |
+|-----------|---------------|------------------------------|
+| **confirmed** | Hay un contenedor embebido: PNG `caBX` (o `juMB`/`C2PA`) o JPEG APP11 con JUMBF. | Sí, si «Detener ante C2PA» está activo (por defecto). |
+| **probable** | Hay una mención en EXIF/XMP/texto (`c2pa`, Content Credentials, etc.), no un contenedor confirmado. | Sí, con la misma opción. |
+| **informational** | Aviso: p. ej. texto de *soft-binding*, o un APP11 genérico (JPEG 360/XT) **sin** JUMBF/C2PA. | No. |
+
+No se busca la cadena `c2pa` dentro del pixel data (PNG IDAT ni JPEG SOS): una coincidencia de bytes comprimidos no es una credencial.
+
+Quitar EXIF/XMP **no** elimina marcas en el píxel ni un manifiesto guardado fuera del archivo. El plugin **no borra** el contenedor C2PA: o se detiene, o (si desactivas la opción) sigue con el resto de metadatos bajo tu responsabilidad.
 
 #### Hosting compartido vs VPS
 
@@ -42,10 +56,10 @@ GD suele venir de serie: limpia, pero no escribe autoría estructurada.
 **No es una extensión PHP.** En compartido no detectarlo es lo esperado. Sin ExifTool el plugin no falla: limpia con GD/Imagick.
 
 Qué **no** hace:
-- No elimina marcas de agua incrustadas en píxeles.
+- No elimina marcas de agua incrustadas en píxeles ni manifiestos C2PA remotos (soft-binding).
 - No garantiza indetectabilidad frente a detectores de IA ni borra SynthID.
 - No inventa cámara, objetivo, serie, fecha o GPS.
-- No valida manifiestos C2PA (solo heurística + aviso).
+- No valida firmas C2PA ni borra credenciales embebidas (solo detecta y, por defecto, se detiene).
 
 Valores iniciales seguros: módulo desactivado, dry run activado, backup activado, detener ante C2PA, ExifTool desactivado.
 
@@ -56,6 +70,7 @@ Pruebas unitarias:
 php tests/unit/run-image-unit-tests.php
 php tests/unit/run-unicode-unit-tests.php
 php tests/unit/run-html-provenance-unit-tests.php
+php tests/unit/run-c2pa-unit-tests.php
 ```
 
 ---
@@ -425,6 +440,13 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.8.5
+- Parser C2PA estructural: PNG `caBX`/`juMB` y JPEG APP11+JUMBF. Confianza `confirmed` / `probable` / `informational`.
+- Ya no se escanean IDAT ni SOS (evita falsos positivos). APP11 sin JUMBF no se trata como C2PA (JPEG 360).
+- Aviso de soft-binding en el informe. `stop_on_c2pa` sigue activo por defecto (bloquea confirmed y probable, no informational).
+- Texto de ayuda en **Imágenes**: «¿Cómo funciona el módulo de imágenes?» actualizado.
+- Tests: `php tests/unit/run-c2pa-unit-tests.php`.
 
 ### 1.8.4
 - Wildcard `data-ai` / `data-ai-*` (no `data-air`) en DOM, regex y bloques Gutenberg; el análisis previo también los cuenta.

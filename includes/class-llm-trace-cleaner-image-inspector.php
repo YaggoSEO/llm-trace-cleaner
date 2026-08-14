@@ -7,6 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/class-llm-trace-cleaner-image-c2pa.php';
+
 /**
  * Audita metadatos sin modificar el archivo.
  */
@@ -71,10 +73,7 @@ class LLM_Trace_Cleaner_Image_Inspector {
 			'metadata'        => array(),
 			'sensitive'       => array(),
 			'generator_hints' => array(),
-			'c2pa'            => array(
-				'status'  => 'not_detected',
-				'message' => '',
-			),
+			'c2pa'            => LLM_Trace_Cleaner_Image_C2PA::empty_result(),
 			'technical'       => array(),
 			'warnings'        => array(),
 			'risk_score'      => 0,
@@ -112,7 +111,7 @@ class LLM_Trace_Cleaner_Image_Inspector {
 		$flat = $this->flatten_strings( $report['metadata'] );
 		$report['generator_hints'] = $this->detect_generator_hints( $flat );
 		$report['sensitive']       = $this->detect_sensitive( $report['metadata'], $flat );
-		$report['c2pa']            = $this->detect_c2pa( $path, $flat );
+		$report['c2pa']            = LLM_Trace_Cleaner_Image_C2PA::inspect_file( $path, $flat );
 		$report['risk_score']      = $this->score_risk( $report );
 
 		return $report;
@@ -216,41 +215,6 @@ class LLM_Trace_Cleaner_Image_Inspector {
 			}
 		}
 		return $sensitive;
-	}
-
-	/**
-	 * Detección heurística C2PA (MVP).
-	 *
-	 * @param string $path Path.
-	 * @param array  $flat Strings.
-	 * @return array
-	 */
-	private function detect_c2pa( $path, array $flat ) {
-		$status  = 'not_detected';
-		$message = '';
-
-		$fh = @fopen( $path, 'rb' );
-		if ( $fh ) {
-			$chunk = fread( $fh, 65536 );
-			fclose( $fh );
-			if ( is_string( $chunk ) && ( false !== stripos( $chunk, 'c2pa' ) || false !== stripos( $chunk, 'jumb' ) || false !== stripos( $chunk, 'contentcredentials' ) ) ) {
-				$status  = 'possibly_detected';
-				$message = 'Posible bloque C2PA/credenciales de contenido. Re-encodear puede invalidar la firma. Estado: unsupported (sin validación).';
-			}
-		}
-
-		foreach ( $flat as $str ) {
-			if ( preg_match( '/c2pa|contentcredentials|claim.?generator/i', $str ) ) {
-				$status  = 'possibly_detected';
-				$message = 'Referencia a C2PA en metadatos. Validación no disponible en el MVP.';
-				break;
-			}
-		}
-
-		return array(
-			'status'  => $status,
-			'message' => $message,
-		);
 	}
 
 	/**

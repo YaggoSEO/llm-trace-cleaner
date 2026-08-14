@@ -203,16 +203,24 @@ class LLM_Trace_Cleaner_Image_Admin {
 		echo '</p>';
 		echo '<p style="margin-bottom: 10px;">' . esc_html__( 'Puede:', 'llm-trace-cleaner' ) . '</p>';
 		echo '<ul style="margin-left: 20px; margin-bottom: 10px;">';
-		echo '<li>' . esc_html__( 'Detectar GPS, datos de dispositivo, software, prompts/workflows y otros rastros sensibles', 'llm-trace-cleaner' ) . '</li>';
-		echo '<li>' . esc_html__( 'Aplicar perfiles (privacidad, corporativo, SEO local, fotografía, imagen generada/editada con IA)', 'llm-trace-cleaner' ) . '</li>';
-		echo '<li>' . esc_html__( 'Simular cambios (dry run), crear copias de seguridad y restaurar el original', 'llm-trace-cleaner' ) . '</li>';
-		echo '<li>' . esc_html__( 'Procesar adjuntos individuales o por lotes desde la biblioteca multimedia', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Detectar GPS, datos de dispositivo, software, prompts/workflows y otros rastros sensibles.', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Detectar hints XMP de procedencia (digitalSourceType, trainedAlgorithmicMedia, AIGC).', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Aplicar perfiles (privacidad, corporativo, SEO local, fotografía, imagen generada/editada con IA) y editar sus campos (empresa, ciudad, copyright…). El SEO local usa ubicación mostrada, no GPS de captura.', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Simular cambios (dry run), crear copias de seguridad y restaurar el original.', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'Procesar adjuntos individuales o por lotes, y opcionalmente al subir una imagen nueva.', 'llm-trace-cleaner' ) . '</li>';
+		echo '</ul>';
+		echo '<p style="margin-bottom: 6px;"><strong>' . esc_html__( 'C2PA / Content Credentials:', 'llm-trace-cleaner' ) . '</strong></p>';
+		echo '<ul style="margin-left: 20px; margin-bottom: 10px;">';
+		echo '<li>' . esc_html__( 'Busca contenedores reales: chunk PNG caBX (también juMB/C2PA) y JPEG APP11 con JUMBF. No recorre el pixel data (IDAT/SOS), para no marcar una coincidencia de bytes como credencial.', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'En el informe verás una confianza: confirmed (contenedor embebido), probable (mención en EXIF/XMP/texto) o informational (aviso, p. ej. soft-binding o un APP11 de JPEG 360 sin JUMBF).', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'La opción «Detener ante C2PA» (activada por defecto) para el saneamiento si la confianza es confirmed o probable. Lo informational no bloquea.', 'llm-trace-cleaner' ) . '</li>';
+		echo '<li>' . esc_html__( 'No valida la firma criptográfica y no borra las credenciales. Quitar EXIF/XMP no elimina marcas en el píxel ni manifiestos remotos (soft-binding).', 'llm-trace-cleaner' ) . '</li>';
 		echo '</ul>';
 		echo '<p style="margin-bottom: 10px;"><strong>' . esc_html__( 'Motores:', 'llm-trace-cleaner' ) . '</strong> ';
 		echo esc_html__( 'En hosting compartido pide Imagick (recomendado). GD solo limpia por re-encode. ExifTool es opcional y casi solo viable en VPS/dedicado (no es extensión PHP).', 'llm-trace-cleaner' );
 		echo '</p>';
 		echo '<p style="margin-bottom: 0; padding-top: 10px; border-top: 1px solid #c3c4c7;"><strong>' . esc_html__( 'Importante:', 'llm-trace-cleaner' ) . '</strong> ';
-		echo esc_html__( 'No elimina marcas de agua en píxeles ni garantiza indetectabilidad. Distingue ubicación creada de ubicación mostrada; no inventa cámara ni GPS. Si detecta posible C2PA, detiene el procesamiento por defecto.', 'llm-trace-cleaner' );
+		echo esc_html__( 'No elimina marcas de agua en píxeles ni garantiza indetectabilidad frente a detectores de IA. Distingue ubicación creada de ubicación mostrada; no inventa cámara, objetivo, serie, fecha ni GPS.', 'llm-trace-cleaner' );
 		echo '</p>';
 		echo '</div>';
 
@@ -511,7 +519,9 @@ class LLM_Trace_Cleaner_Image_Admin {
 				'height'     => isset( $report['height'] ) ? $report['height'] : '',
 				'engine'     => isset( $report['engine'] ) ? $report['engine'] : '',
 				'risk_score' => isset( $report['risk_score'] ) ? $report['risk_score'] : '',
-				'c2pa'       => isset( $report['c2pa']['status'] ) ? $report['c2pa']['status'] : '',
+				'c2pa'            => isset( $report['c2pa']['status'] ) ? $report['c2pa']['status'] : '',
+				'c2pa_confidence' => isset( $report['c2pa']['confidence'] ) ? $report['c2pa']['confidence'] : '',
+				'c2pa_warning'    => isset( $report['c2pa']['soft_binding_warning'] ) ? $report['c2pa']['soft_binding_warning'] : '',
 				'hash'       => isset( $report['hash_sha256'] ) ? $report['hash_sha256'] : '',
 			);
 			foreach ( $flat as $k => $v ) {

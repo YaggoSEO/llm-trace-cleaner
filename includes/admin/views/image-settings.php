@@ -106,7 +106,7 @@ $profiles = LLM_Trace_Cleaner_Image_Profile::all();
 						<?php esc_html_e( 'No modificar si hay indicios de credenciales de contenido', 'llm-trace-cleaner' ); ?>
 					</label>
 					<p class="description">
-						<?php esc_html_e( 'C2PA (Content Credentials) firma la procedencia de la imagen. Re-encodear o limpiar metadatos puede invalidar esa firma. Con esta opción, si se detecta un posible bloque C2PA, el procesamiento se detiene y se registra un aviso. La detección en el MVP es heurística, no una validación criptográfica. Recomendado: activado.', 'llm-trace-cleaner' ); ?>
+						<?php esc_html_e( 'C2PA (Content Credentials) firma la procedencia de la imagen. Re-encodear o limpiar metadatos puede invalidar esa firma. Si se detecta un contenedor (PNG caBX o JPEG APP11/JUMBF) o una referencia en metadatos, el procesamiento se detiene. No se escanea el pixel data (IDAT/SOS) para evitar falsos positivos. La detección no valida la firma criptográfica. Quitar EXIF no elimina marcas en el píxel ni manifiestos remotos (soft-binding). Recomendado: activado.', 'llm-trace-cleaner' ); ?>
 					</p>
 				</td>
 			</tr>
