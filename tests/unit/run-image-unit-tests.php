@@ -60,6 +60,9 @@ assert_true( LLM_Trace_Cleaner_Image_Inspector::risk_level( 45 ) === 'high', 'ri
 
 $patterns = LLM_Trace_Cleaner_Image_Inspector::generator_patterns();
 assert_true( in_array( 'comfyui', $patterns, true ), 'pattern comfyui' );
+assert_true( in_array( 'digitalsourcetype', $patterns, true ), 'pattern digitalsourcetype' );
+assert_true( in_array( 'trainedalgorithmicmedia', $patterns, true ), 'pattern trainedalgorithmicmedia' );
+assert_true( in_array( 'aigc', $patterns, true ), 'pattern aigc' );
 
 $profile = array(
 	'rules'    => array(

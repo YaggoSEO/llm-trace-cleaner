@@ -3,7 +3,7 @@
  * Plugin Name: LLM Trace Cleaner
  * Plugin URI: https://github.com/YaggoSEO/llm-trace-cleaner
  * Description: Elimina rastros de herramientas LLM del HTML y audita/sanea metadatos de imágenes (JPEG/PNG/WebP).
- * Version: 1.8.3
+ * Version: 1.8.4
  * Author: Yago Vázquez Gómez (Yaggoseo)
  * Author URI: https://yaggoseo.com
  * License: GPL v2 or later
@@ -19,7 +19,7 @@ defined('ABSPATH') || exit;
 // Verificar si las constantes ya están definidas (evita conflictos en actualizaciones)
 if (!defined('LLM_TRACE_CLEANER_VERSION')) {
     // Definir constantes del plugin
-    define('LLM_TRACE_CLEANER_VERSION', '1.8.3');
+    define('LLM_TRACE_CLEANER_VERSION', '1.8.4');
     define('LLM_TRACE_CLEANER_PLUGIN_DIR', plugin_dir_path(__FILE__));
     define('LLM_TRACE_CLEANER_PLUGIN_URL', plugin_dir_url(__FILE__));
 }

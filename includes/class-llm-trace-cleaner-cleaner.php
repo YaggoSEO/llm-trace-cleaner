@@ -120,6 +120,7 @@ class LLM_Trace_Cleaner_Cleaner {
                 // Fallback a expresiones regulares si DOMDocument no está disponible
                 $cleaned_html = $this->clean_with_regex($html, $options);
             }
+            $cleaned_html = $this->remove_ai_provenance_markup($cleaned_html, $options);
         } else {
             $cleaned_html = $html;
         }
@@ -159,6 +160,17 @@ class LLM_Trace_Cleaner_Cleaner {
             $gutenberg_data['blocks'] = $cleaned_blocks;
         }
         
+        // Limpiar atributos y procedencia en bloques de Gutenberg antes de restaurarlos
+        if ($options['clean_attributes'] && !empty($gutenberg_data['blocks'])) {
+            $cleaned_blocks = array();
+            foreach ($gutenberg_data['blocks'] as $block) {
+                $block = $this->clean_with_regex($block, $options);
+                $block = $this->remove_ai_provenance_markup($block, $options);
+                $cleaned_blocks[] = $block;
+            }
+            $gutenberg_data['blocks'] = $cleaned_blocks;
+        }
+
         // Restaurar comentarios de bloques de Gutenberg después de la limpieza
         $cleaned_html = $this->restore_gutenberg_blocks(
             $cleaned_html, 
@@ -759,6 +771,23 @@ class LLM_Trace_Cleaner_Cleaner {
                 }
             }
         }
+
+        $ai_attrs = array();
+        if ($element->hasAttributes()) {
+            foreach ($element->attributes as $attr_node) {
+                $attr_name = $attr_node->name;
+                if ($this->is_data_ai_attribute_name($attr_name)) {
+                    $ai_attrs[] = $attr_name;
+                }
+            }
+        }
+        foreach ($ai_attrs as $attr_name) {
+            $element->removeAttribute($attr_name);
+            $this->increment_stat($attr_name);
+            if ($location) {
+                $this->record_change_location('attribute', $attr_name, $location);
+            }
+        }
         
         // Eliminar atributo id si coincide con el patrón
         if ($element->hasAttribute('id')) {
@@ -817,6 +846,25 @@ class LLM_Trace_Cleaner_Cleaner {
                     'block_type' => 'HTML Element',
                     'block_name' => null,
                     'class' => null
+                ));
+            }
+        }
+
+        $ai_count = 0;
+        $cleaned  = preg_replace(
+            '/\s+data-ai(?:-[\w-]+)?(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+))?/i',
+            '',
+            $cleaned,
+            -1,
+            $ai_count
+        );
+        if ($ai_count > 0) {
+            $this->increment_stat('data-ai*', $ai_count);
+            if (!empty($options['track_locations'])) {
+                $this->record_change_location('attribute', 'data-ai*', array(
+                    'block_type' => 'HTML Element',
+                    'block_name' => null,
+                    'class'      => null,
                 ));
             }
         }
@@ -1138,6 +1186,80 @@ class LLM_Trace_Cleaner_Cleaner {
         $attrs = apply_filters('llm_trace_cleaner_attributes', $attrs);
         return array_values(array_unique(array_filter($attrs)));
     }
+
+    /**
+     * Prefijo estricto data-ai / data-ai-* (no data-air ni data-aid).
+     *
+     * @param string $name Nombre de atributo.
+     * @return bool
+     */
+    private function is_data_ai_attribute_name($name) {
+        return (bool) preg_match('/^data-ai(?:-|$)/i', $name);
+    }
+
+    /**
+     * ¿El texto apunta a un vendor de IA, no a un CMS?
+     *
+     * @param string $text Texto a inspeccionar.
+     * @return bool
+     */
+    private function is_ai_vendor_text($text) {
+        return (bool) preg_match(
+            '/claude|anthropic|openai|chatgpt|gemini|synthid|copilot|midjourney|dall.?e|stable.?diffusion/i',
+            $text
+        );
+    }
+
+    /**
+     * Quita JSON-LD de procedencia IA y meta generator de vendors IA.
+     * Conserva generator de WordPress, Elementor y demás CMS.
+     *
+     * @param string $html    HTML.
+     * @param array  $options Opciones (reservado).
+     * @return string
+     */
+    private function remove_ai_provenance_markup($html, $options = array()) {
+        unset($options);
+
+        $cleaned = preg_replace_callback(
+            '#<script\b([^>]*)>(.*?)</script>#is',
+            function ($matches) {
+                $attrs = $matches[1];
+                $body  = $matches[2];
+                if (!preg_match('/type\s*=\s*["\']application\/ld\+json["\']/i', $attrs)) {
+                    return $matches[0];
+                }
+                if (preg_match('/DigitalSourceType|trainedAlgorithmicMedia|compositeWithTrainedAlgorithmicMedia|algorithmicMedia|SoftwareAgent/i', $body)) {
+                    $this->increment_stat('json-ld-ai-provenance');
+                    return '';
+                }
+                return $matches[0];
+            },
+            $html
+        );
+
+        if (!is_string($cleaned)) {
+            $cleaned = $html;
+        }
+
+        $after_meta = preg_replace_callback(
+            '#<meta\b[^>]*>#i',
+            function ($matches) {
+                $tag = $matches[0];
+                if (!preg_match('/\b(?:name|property)\s*=\s*["\']generator["\']/i', $tag)) {
+                    return $tag;
+                }
+                if ($this->is_ai_vendor_text($tag)) {
+                    $this->increment_stat('meta-generator-ai');
+                    return '';
+                }
+                return $tag;
+            },
+            $cleaned
+        );
+
+        return is_string($after_meta) ? $after_meta : $cleaned;
+    }
     
     /**
      * Incrementar contador de estadísticas
@@ -1207,6 +1329,18 @@ class LLM_Trace_Cleaner_Cleaner {
             if ($count > 0) {
                 $analysis['attributes_found'][$attr] = $count;
                 $analysis['total_attributes'] += $count;
+            }
+        }
+
+        preg_match_all('/\s+(data-ai(?:-[\w-]+)?)(?:\s*=\s*["\'][^"\']*["\'])?/i', $html, $ai_matches);
+        if (!empty($ai_matches[1])) {
+            foreach ($ai_matches[1] as $ai_attr) {
+                $key = strtolower($ai_attr);
+                if (!isset($analysis['attributes_found'][$key])) {
+                    $analysis['attributes_found'][$key] = 0;
+                }
+                $analysis['attributes_found'][$key]++;
+                $analysis['total_attributes']++;
             }
         }
         

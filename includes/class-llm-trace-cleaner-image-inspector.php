@@ -45,6 +45,11 @@ class LLM_Trace_Cleaner_Image_Inspector {
 			'checkpoint',
 			'loras',
 			'controlnet',
+			'digitalsourcetype',
+			'trainedalgorithmicmedia',
+			'compositewithtrainedalgorithmicmedia',
+			'algorithmicmedia',
+			'aigc',
 		);
 	}
 
@@ -268,7 +273,7 @@ class LLM_Trace_Cleaner_Image_Inspector {
 			$p = isset( $hint['pattern'] ) ? $hint['pattern'] : '';
 			if ( 'local_path' === $p ) {
 				$score += 20;
-			} elseif ( in_array( $p, array( 'prompt', 'negative prompt', 'workflow', 'comfyui' ), true ) ) {
+			} elseif ( in_array( $p, array( 'prompt', 'negative prompt', 'workflow', 'comfyui', 'digitalsourcetype', 'trainedalgorithmicmedia', 'aigc' ), true ) ) {
 				$score += 20;
 			} elseif ( in_array( $p, array( 'seed', 'model hash', 'stable diffusion', 'midjourney', 'dall-e', 'openai', 'flux' ), true ) ) {
 				$score += 10;

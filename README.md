@@ -19,6 +19,7 @@ Qué hace:
 - Procesamiento manual, por lotes y (opcional) en nuevas subidas.
 - Distinguir **ubicación creada** vs **ubicación mostrada** / ámbito geográfico.
 - Detección heurística de C2PA: por defecto **no modifica** si hay indicios.
+- Hints XMP de procedencia (v1.8.4): `digitalSourceType`, `trainedAlgorithmicMedia`, `AIGC`.
 - **ExifTool opcional** (v1.8+): escritura completa EXIF/IPTC/XMP; **solo VPS/dedicado**. En hosting compartido pide **Imagick**.
 - Reglas condicionales por MIME/carpeta/autor; AVIF opcional; export CSV/JSON de informes.
 
@@ -54,6 +55,7 @@ Pruebas unitarias:
 ```bash
 php tests/unit/run-image-unit-tests.php
 php tests/unit/run-unicode-unit-tests.php
+php tests/unit/run-html-provenance-unit-tests.php
 ```
 
 ---
@@ -62,6 +64,7 @@ php tests/unit/run-unicode-unit-tests.php
 
 - ✅ **Limpieza automática**: Opción para limpiar automáticamente el contenido al guardar entradas/páginas
 - ✨ **Unicode contextual (v1.8.3)**: quita marcas invisibles huérfanas y conserva emoji, ZWNJ en árabe/hebreo y bidi equilibrado
+- ✨ **Procedencia HTML (v1.8.4)**: wildcard `data-ai*`, JSON-LD de media entrenada y meta generator de vendors IA (conserva WordPress/Elementor)
 - 📊 **Sistema de logging**: Registro completo de todas las acciones realizadas con detección inteligente de atributos eliminados
 - ⚡ **Procesamiento optimizado**: Sistema de lotes para evitar timeouts en sitios grandes
 - 📈 **Barra de progreso**: Visualización en tiempo real del progreso de limpieza
@@ -148,6 +151,15 @@ El plugin elimina los siguientes atributos cuando aparecen en el HTML:
 - `data-ui-state` - **Uso**: Estado de la interfaz de usuario cuando se generó el contenido. **Riesgo**: Expone información sobre el estado de la UI del LLM, información técnica que no debería estar en el HTML público.
 
 - Cualquier atributo `id` cuyo valor empiece por `model-response-message-contentr_` - **Uso**: Identificadores automáticos generados por algunos LLMs para elementos de respuesta. **Riesgo**: Permite identificar directamente contenido generado por LLMs específicos, afectando la percepción de originalidad y potencialmente el SEO.
+
+- `data-ai` y `data-ai-*` (v1.8.4) - **Uso**: Marcadores genéricos de contenido o media generada (`data-ai-generated`, `data-ai-model`, `data-ai-source`, etc.). **Riesgo**: Identifican origen IA en el HTML público. El prefijo es estricto: **no** se toca `data-air`, `data-aid` ni atributos ajenos. También se limpian dentro de bloques Gutenberg.
+
+### Procedencia HTML (v1.8.4+)
+
+Además de atributos:
+
+- **JSON-LD** (`application/ld+json`): se elimina el bloque entero si declara procedencia de media entrenada o agente de software (`DigitalSourceType`, `trainedAlgorithmicMedia`, `SoftwareAgent`, etc.). Un `Article` u otro schema sin esas claves se conserva.
+- **Meta generator**: se quita si el `content` apunta a un vendor de IA (ChatGPT, Claude, OpenAI, Gemini, Midjourney, etc.). Se **conserva** WordPress, Elementor y otros CMS.
 
 ### Referencias de contenido LLM eliminadas
 
@@ -413,6 +425,13 @@ set_time_limit(300);
 - Revisa los logs de error de WordPress
 
 ## 📝 Changelog
+
+### 1.8.4
+- Wildcard `data-ai` / `data-ai-*` (no `data-air`) en DOM, regex y bloques Gutenberg; el análisis previo también los cuenta.
+- Quita JSON-LD con procedencia de media entrenada / `SoftwareAgent`. Conserva JSON-LD de artículo.
+- Meta `generator`: conserva CMS (WordPress, Elementor); quita vendors IA (ChatGPT, Claude, etc.).
+- Inspector de imágenes: hints XMP `digitalSourceType`, `trainedAlgorithmicMedia`, `AIGC`.
+- Tests: `php tests/unit/run-html-provenance-unit-tests.php`.
 
 ### 1.8.3
 - **Unicode contextual**: conserva pegamento de emoji (ZWJ/VS16), ZWNJ en árabe/hebreo y bidi equilibrado; elimina solo marcas huérfanas.
