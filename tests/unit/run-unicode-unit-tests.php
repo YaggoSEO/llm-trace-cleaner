@@ -19,6 +19,11 @@ if ( ! function_exists( 'apply_filters' ) ) {
 		return $value;
 	}
 }
+if ( ! function_exists( 'mb_convert_encoding' ) ) {
+	function mb_convert_encoding( $string, $to, $from = null ) {
+		return $string;
+	}
+}
 
 require_once dirname( __DIR__, 2 ) . '/includes/class-llm-trace-cleaner-cleaner.php';
 
@@ -32,6 +37,14 @@ function assert_true( $cond, $msg ) {
 		echo "FAIL $msg\n";
 		$fail++;
 	}
+}
+
+function assert_same( $expected, $actual, $msg ) {
+	if ( $expected === $actual ) {
+		assert_true( true, $msg );
+		return;
+	}
+	assert_true( false, $msg . ' esperado=' . json_encode( $expected ) . ' actual=' . json_encode( $actual ) );
 }
 
 function cp( $code ) {
@@ -209,6 +222,48 @@ $analysis_zwj = $cleaner->analyze_content( 'a' . $zwj . 'b' );
 assert_true(
 	! empty( $analysis_zwj['unicode_found']['Zero Width Joiner (U+200D)'] ),
 	'analyze sí cuenta ZWJ entre latín'
+);
+
+$words = array(
+	'bloqueadas',
+	'bloqueada',
+	'educada',
+	'caducada',
+	'suceda',
+	'sucede',
+	'suceden',
+	'quedaba',
+	'quedado',
+	'quedada',
+	'succeed',
+);
+foreach ( $words as $word ) {
+	assert_same( $word, clean_unicode_only( $word ), 'no interpreta «' . $word . '» como escape Unicode' );
+}
+
+$sentence = 'Las páginas bloqueadas quedan educadas si sucede que se ha caducada la norma.';
+assert_same( $sentence, clean_unicode_only( $sentence ), 'frase con ueada/ucada/ucede se conserva' );
+
+assert_same( '<code>', clean_unicode_only( 'u003ccodeu003e' ), 'u003c/u003e sin barra sigue decodificándose' );
+assert_same( '<p>hola ' . cp( 0x00E1 ) . '</p>', clean_unicode_only( 'u003cpu003ehola u00e1u003c/pu003e' ), 'u00XX restaura HTML y Latin-1' );
+assert_same( '&', clean_unicode_only( 'u0026' ), 'u0026 sin barra decodifica &' );
+assert_same( 'prefijo>', clean_unicode_only( 'prefijou003e' ), 'escape pegado a letras con dígito sí decodifica' );
+
+assert_same( '<', clean_unicode_only( '\\u003c' ), '\\u003c con barra decodifica <' );
+assert_same( cp( 0x00E1 ), clean_unicode_only( '\\u00e1' ), '\\u00e1 con barra decodifica á' );
+assert_same( '\\u0022', clean_unicode_only( '\\u0022' ), '\\u0022 de JSON no se convierte en comilla' );
+assert_same( '\\u005c', clean_unicode_only( '\\u005c' ), '\\u005c no se convierte en barra' );
+assert_same( '\\ueada', clean_unicode_only( '\\ueada' ), '\\ueada de área privada no se materializa' );
+assert_same( 'uE000', clean_unicode_only( 'uE000' ), 'uE000 con dígitos pero área privada se conserva' );
+assert_same( 'uD83D', clean_unicode_only( 'uD83D' ), 'surrogate suelto no se borra' );
+
+$gutenberg = '<!-- wp:paragraph {"title":"say \\u0022hi\\u0022"} -->' . "\n" . '<p>Las páginas bloqueadas</p>' . "\n" . '<!-- /wp:paragraph -->';
+assert_same( $gutenberg, clean_unicode_only( $gutenberg ), 'guardar bloque Gutenberg no corrompe bloqueadas ni \\u0022' );
+
+assert_same(
+	'bloqueadas',
+	clean_unicode_only( 'bloqueadas', array( 'clean_unicode' => false, 'clean_attributes' => true ) ),
+	'con solo atributos, bloqueadas tampoco se corrompe'
 );
 
 if ( $fail > 0 ) {

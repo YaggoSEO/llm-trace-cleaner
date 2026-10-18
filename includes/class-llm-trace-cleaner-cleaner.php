@@ -99,8 +99,8 @@ class LLM_Trace_Cleaner_Cleaner {
         $this->last_stats = array();
         $this->change_locations = array();
         
-        // Primero, decodificar secuencias Unicode como u003c, u003e, etc.
-        // Esto corrige problemas donde el HTML aparece como u003ccodeu003e en lugar de <code>
+        // Decodificar escapes JSON rotos (u003c) sin tratar letras hexadecimales
+        // como código. «ueada» dentro de «bloqueadas» no es un escape.
         $html = $this->decode_unicode_sequences($html);
         
         // Extraer y preservar comentarios de bloques de Gutenberg
@@ -608,71 +608,102 @@ class LLM_Trace_Cleaner_Cleaner {
     }
     
     /**
-     * Decodificar secuencias Unicode como u003c, u003e, etc. a sus caracteres correspondientes
-     * Esto corrige problemas donde el HTML aparece mal formateado después de eliminar Unicode
+     * Decodificar escapes Unicode que perdieron la barra, como u003c → <.
+     *
+     * Una «u» seguida solo de letras a-f es una palabra («bloqueadas» contiene
+     * «ueada»), no un código. Los escapes con barra se resuelven antes para
+     * no dejar la barra suelta ni romper las comillas de un JSON de Gutenberg.
      *
      * @param string $html Contenido HTML
      * @return string HTML con secuencias Unicode decodificadas
      */
     private function decode_unicode_sequences($html) {
-        // Decodificar diferentes formatos de secuencias Unicode:
-        // 1. Formato u003c (sin backslash)
-        // 2. Formato \u003c (con backslash)
-        // 3. Formato &#x003c; (entidad HTML hexadecimal)
-        // 4. Formato &#60; (entidad HTML decimal)
-        
-        // Formato 1: u003c (sin backslash) - el más común en el problema reportado
-        $html = preg_replace_callback('/u([0-9a-fA-F]{4})/u', function($matches) {
-            return $this->decode_unicode_char($matches[1]);
+        $html = preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/u', function ($matches) {
+            return $this->decode_unicode_char($matches[1], 16, $matches[0], false);
         }, $html);
-        
-        // Formato 2: \u003c (con backslash) - formato estándar de escape Unicode
-        $html = preg_replace_callback('/\\\\u([0-9a-fA-F]{4})/u', function($matches) {
-            return $this->decode_unicode_char($matches[1]);
+
+        $html = preg_replace_callback('/(?<!\\\\)u([0-9a-fA-F]{4})/u', function ($matches) {
+            if (!preg_match('/[0-9]/', $matches[1])) {
+                return $matches[0];
+            }
+            return $this->decode_unicode_char($matches[1], 16, $matches[0], true);
         }, $html);
-        
-        // Formato 3: &#x003c; (entidad HTML hexadecimal) - ya debería estar manejado por html_entity_decode
-        // pero lo verificamos por si acaso
-        $html = preg_replace_callback('/&#x([0-9a-fA-F]{1,6});/iu', function($matches) {
+
+        $html = preg_replace_callback('/&#x([0-9a-fA-F]{1,6});/iu', function ($matches) {
             $code = intval($matches[1], 16);
             if (LLM_Trace_Cleaner_Unicode::is_always_strip($code)) {
                 return $matches[0];
             }
-            return $this->decode_unicode_char($matches[1], 16);
+            return $this->decode_unicode_char($matches[1], 16, $matches[0], true);
         }, $html);
-        
+
         return $html;
     }
-    
+
     /**
-     * Decodificar un código Unicode a su carácter correspondiente
+     * Decodificar un código Unicode a su carácter correspondiente.
      *
-     * @param string $hex_code Código hexadecimal (4 dígitos)
-     * @param int $base Base numérica (16 para hexadecimal, 10 para decimal)
-     * @return string Carácter decodificado
+     * Si el código no debe materializarse, se devuelve el texto original.
+     *
+     * @param string $hex_code Código hexadecimal.
+     * @param int    $base Base numérica (16 para hexadecimal).
+     * @param string $original Texto completo del match, si hay que conservarlo.
+     * @param bool   $allow_structural Permite comilla y barra. En escapes \u se niega para no romper JSON.
+     * @return string
      */
-    private function decode_unicode_char($hex_code, $base = 16) {
+    private function decode_unicode_char($hex_code, $base = 16, $original = '', $allow_structural = true) {
         $code = intval($hex_code, $base);
-        
-        // Solo borrar en decode los que no dependen de contexto (ZWJ/VS/bidi van al walker).
+
+        if ($this->is_unsafe_unicode_code($code)) {
+            return $original;
+        }
+
+        if (!$allow_structural && (0x22 === $code || 0x5C === $code)) {
+            return $original;
+        }
+
         if (LLM_Trace_Cleaner_Unicode::is_always_strip($code)) {
             return '';
         }
-        
-        // Solo decodificar si es un carácter válido
-        if ($code >= 32 && $code <= 126) { // Caracteres ASCII imprimibles
+
+        if ($code >= 32 && $code <= 126) {
             return chr($code);
-        } elseif ($code > 126 && $code <= 0x10FFFF) { // Caracteres Unicode válidos
-            // Para caracteres Unicode más allá de ASCII, usar mb_chr si está disponible
-            if (function_exists('mb_chr')) {
-                return mb_chr($code, 'UTF-8');
-            } else {
-                // Fallback: convertir a entidad HTML
-                return '&#x' . str_pad(dechex($code), 4, '0', STR_PAD_LEFT) . ';';
-            }
         }
-        
-        return ''; // Eliminar caracteres inválidos
+
+        if ($code > 126 && $code <= 0x10FFFF) {
+            if (function_exists('mb_chr')) {
+                $char = mb_chr($code, 'UTF-8');
+                if (is_string($char) && '' !== $char) {
+                    return $char;
+                }
+                return $original;
+            }
+            return '&#x' . str_pad(dechex($code), 4, '0', STR_PAD_LEFT) . ';';
+        }
+
+        return $original;
+    }
+
+    /**
+     * Surrogates y área de uso privado no son texto recuperable.
+     *
+     * @param int $code Codepoint.
+     * @return bool
+     */
+    private function is_unsafe_unicode_code($code) {
+        if ($code >= 0xD800 && $code <= 0xDFFF) {
+            return true;
+        }
+        if ($code >= 0xE000 && $code <= 0xF8FF) {
+            return true;
+        }
+        if ($code >= 0xF0000 && $code <= 0xFFFFD) {
+            return true;
+        }
+        if ($code >= 0x100000 && $code <= 0x10FFFD) {
+            return true;
+        }
+        return false;
     }
     
     /**
